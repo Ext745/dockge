@@ -51,6 +51,8 @@ export const CREATED_FILE = 1;
 export const CREATED_STACK = 2;
 export const RUNNING = 3;
 export const EXITED = 4;
+export const RUNNING_AND_EXITED = 5;
+export const UNHEALTHY = 6;
 
 export function statusName(status : number) : string {
     switch (status) {
@@ -218,6 +220,10 @@ export function getContainerTerminalName(endpoint : string, container : string) 
 
 export function getContainerExecTerminalName(endpoint : string, stackName : string, container : string, index : number) {
     return "container-exec-" + endpoint + "-" + stackName + "-" + container + "-" + index;
+}
+
+export function getAgentMaintenanceTerminalName(endpoint : string) {
+    return "agent-maintenance-" + endpoint;
 }
 
 export function copyYAMLComments(doc : Document, src : Document) {
