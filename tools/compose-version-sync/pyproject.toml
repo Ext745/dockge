@@ -1,0 +1,21 @@
+[project]
+name = "compose-version-sync"
+version = "0.1.0"
+description = "Sync Docker Compose file image tags with running container versions"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+    "docker>=7.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "click>=8.0",
+    "ruamel.yaml>=0.18",
+]
+
+[project.scripts]
+compose-version-sync = "compose_version_sync.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
