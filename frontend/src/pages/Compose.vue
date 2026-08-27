@@ -64,6 +64,11 @@
                     <font-awesome-icon icon="clock" class="me-1" />
                     {{ $t("autoUpdate") }}
                 </BFormCheckbox>
+
+                <button v-if="!isEditMode && !isAdd && active" class="btn btn-normal ms-2" :disabled="versionScanLoading" @click="scanVersionSync">
+                    <font-awesome-icon icon="code-compare" class="me-1" />
+                    {{ $t("versionSync") }}
+                </button>
             </div>
 
             <!-- URLs -->
@@ -72,6 +77,57 @@
                     <span class="badge bg-secondary me-2">{{ urlItem.display }}</span>
                 </a>
             </div>
+
+            <!-- Version Sync Mismatches -->
+            <transition name="slide-fade" appear>
+                <div v-if="showVersionSync" class="mb-3 shadow-box big-padding">
+                    <div class="d-flex align-items-center mb-2">
+                        <h5 class="mb-0 me-auto">
+                            <font-awesome-icon icon="code-compare" class="me-1" />
+                            {{ $t("versionSync") }}
+                        </h5>
+                        <button class="btn btn-sm btn-normal" @click="showVersionSync = false">
+                            <font-awesome-icon icon="times" />
+                        </button>
+                    </div>
+                    <div v-if="versionScanLoading" class="text-muted">
+                        {{ $t("scanning") }}...
+                    </div>
+                    <div v-else-if="versionMismatches.length === 0" class="text-muted">
+                        {{ $t("noVersionMismatches") }}
+                    </div>
+                    <div v-else>
+                        <div class="mb-2 text-muted small">{{ $t("versionMismatchesFound", [ versionMismatches.length ]) }}</div>
+                        <table class="table table-sm mb-2">
+                            <thead>
+                                <tr>
+                                    <th>{{ $t("service") }}</th>
+                                    <th>{{ $t("composeImage") }}</th>
+                                    <th>{{ $t("runningImage") }}</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="m in versionMismatches" :key="m.service">
+                                    <td>{{ m.service }}</td>
+                                    <td><code class="text-danger">{{ m.composeImage }}</code></td>
+                                    <td><code class="text-success">{{ m.runningImage }}</code></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" :disabled="versionSyncLoading" @click="syncVersion(m)">
+                                            <font-awesome-icon icon="arrows-rotate" class="me-1" />
+                                            {{ $t("sync") }}
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <button v-if="versionMismatches.length > 1" class="btn btn-primary btn-sm" :disabled="versionSyncLoading" @click="syncAllVersions">
+                            <font-awesome-icon icon="arrows-rotate" class="me-1" />
+                            {{ $t("syncAll") }}
+                        </button>
+                    </div>
+                </div>
+            </transition>
 
             <!-- Progress Terminal -->
             <transition name="slide-fade" appear>
@@ -399,6 +455,10 @@ export default {
             stopServiceStatusTimeout: false,
             stopDockerStatsTimeout: false,
             autoUpdate: false,
+            versionMismatches: [],
+            versionScanLoading: false,
+            versionSyncLoading: false,
+            showVersionSync: false,
         };
     },
     computed: {
@@ -877,6 +937,47 @@ export default {
         toggleAutoUpdate() {
             this.$root.getSocket().emit("setAutoUpdate", this.stack.name, this.endpoint, this.autoUpdate, (res) => {
                 this.$root.toastRes(res);
+            });
+        },
+
+        scanVersionSync() {
+            this.versionScanLoading = true;
+            this.showVersionSync = true;
+            this.versionMismatches = [];
+
+            this.$root.emitAgent(this.endpoint, "scanVersionSync", this.stack.name, (res) => {
+                this.versionScanLoading = false;
+                if (res.ok) {
+                    this.versionMismatches = res.data.mismatches;
+                } else {
+                    this.$root.toastRes(res);
+                }
+            });
+        },
+
+        syncVersion(mismatch) {
+            this.versionSyncLoading = true;
+
+            this.$root.emitAgent(this.endpoint, "syncVersion", mismatch.stackName, mismatch.service, mismatch.runningImage, (res) => {
+                this.versionSyncLoading = false;
+                this.$root.toastRes(res);
+                if (res.ok) {
+                    this.versionMismatches = this.versionMismatches.filter(m => m.service !== mismatch.service);
+                    this.loadStack();
+                }
+            });
+        },
+
+        syncAllVersions() {
+            this.versionSyncLoading = true;
+
+            this.$root.emitAgent(this.endpoint, "syncAllVersions", this.stack.name, (res) => {
+                this.versionSyncLoading = false;
+                this.$root.toastRes(res);
+                if (res.ok) {
+                    this.versionMismatches = [];
+                    this.loadStack();
+                }
             });
         },
 

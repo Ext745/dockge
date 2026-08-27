@@ -4,6 +4,7 @@ import { log } from "../log";
 import { callbackError, checkLogin, DockgeSocket, ValidationError } from "../util-server";
 import { StackSettingsService } from "../stack-settings-service";
 import { UpdateHistoryService } from "../update-history-service";
+import { VersionSyncHistoryService } from "../version-sync-history-service";
 import { Stack } from "../stack";
 import { Settings } from "../settings";
 import crypto from "crypto";
@@ -202,6 +203,28 @@ export class UpdateManagementSocketHandler extends SocketHandler {
                         }
                     })();
                 }
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        socket.on("getVersionSyncHistory", async (options: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                const opts = (typeof options === "object" && options !== null) ? options as Record<string, unknown> : {};
+                const result = await VersionSyncHistoryService.getHistory({
+                    limit: typeof opts.limit === "number" ? opts.limit : undefined,
+                    offset: typeof opts.offset === "number" ? opts.offset : undefined,
+                    stackName: typeof opts.stackName === "string" ? opts.stackName : undefined,
+                    service: typeof opts.service === "string" ? opts.service : undefined,
+                    endpoint: typeof opts.endpoint === "string" ? opts.endpoint : undefined,
+                });
+
+                callback({
+                    ok: true,
+                    data: result,
+                });
             } catch (e) {
                 callbackError(e, callback);
             }

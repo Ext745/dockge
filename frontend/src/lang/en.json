@@ -162,5 +162,18 @@
     "cronHelp": "Default: 0 3 * * * (daily at 3 AM). Uses standard cron syntax.",
     "apiKey": "API Key",
     "apiKeyHelp": "Set an API key to enable the REST API. Keep a copy of your key — treat it like a password.",
-    "apiKeyPlaceholder": "Enter new API key"
+    "apiKeyPlaceholder": "Enter new API key",
+    "versionSync": "Version Sync",
+    "scanning": "Scanning",
+    "noVersionMismatches": "Compose files are in sync with running containers.",
+    "versionMismatchesFound": "{0} mismatch(es) found between compose files and running containers.",
+    "composeImage": "Compose File",
+    "runningImage": "Running",
+    "service": "Service",
+    "sync": "Sync",
+    "syncAll": "Sync All",
+    "versionSynced": "Compose file synced to running version.",
+    "allVersionsSynced": "All compose files synced to running versions.",
+    "versionReverted": "Compose file reverted to previous version.",
+    "checkStarted": "Check started"
 }
