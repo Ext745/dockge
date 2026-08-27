@@ -239,38 +239,52 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 ## Version History
 
 ### 1.8.2
-- Security patch: updated `ws` (8.17.1 → 8.21.3) — fixes memory disclosure and DoS vulnerabilities
-- Security patch: updated `yaml` (2.3.4 → 2.9.0) — fixes stack overflow via deeply nested YAML collections
-- Security patch: updated `express` (4.21.2 → 4.22.2) — fixes body-parser DoS, path-to-regexp ReDoS, and qs DoS vulnerabilities
+
+Security patch — updated production dependencies to fix known vulnerabilities:
+
+- `ws` 8.17.1 → 8.21.3 (HIGH) — memory disclosure; memory-exhaustion DoS from tiny fragments
+- `yaml` 2.3.4 → 2.9.0 (MODERATE) — stack overflow via deeply nested YAML collections
+- `express` 4.21.2 → 4.22.2 — body-parser DoS when an invalid limit silently disables size enforcement; path-to-regexp ReDoS via multiple route parameters; qs arrayLimit bypass allowing DoS via memory exhaustion
 
 ### 1.8.1
-- Fixed dark mode styling for drift check panel — Bootstrap CSS custom properties were overriding inherited colors, making table text nearly invisible
-- Moved "Sync All" button to top of drift check panel (next to Scan button), disabled until scan completes
-- Fixed scan hanging forever when an agent is offline — added 30s per-agent timeout
+
+**Fixed**
+- Dark mode drift check panel — Bootstrap CSS custom properties were overriding inherited colors, making table text nearly invisible
+- Scan hanging forever when an agent is offline — added 30s per-agent timeout
+
+**Changed**
+- Moved "Sync All" button to top of drift check panel, disabled until scan completes
 
 ### 1.8.0
-- Removed image update detection feature (skopeo-based registry digest comparison)
-- Removed auto-update scheduler (cron-based), per-stack auto-update toggle, and "Update All" button
-- Removed `skopeo` from Docker image dependencies
+
+**Removed**
+- Image update detection feature (skopeo-based registry digest comparison)
+- Auto-update scheduler (cron-based), per-stack auto-update toggle, and "Update All" button
+- `skopeo` from Docker image dependencies
+- All update-related API endpoints (`/api/stacks/:name/update`, `/api/stacks/:name/check-updates`, `/api/update-all`, `/api/scheduler`, `/api/update-history`)
+- Settings UI for update defaults and scheduler configuration
+
+**Changed**
 - Renamed "Version Sync" to "Compose Drift Check" across the UI
 - Replaced "Update All" sidebar button with "Compose Drift Check" link
-- Simplified Settings page — removed update defaults and scheduler UI, kept API key management
-- Fixed dark mode styling for drift check panel (table text, code element contrast)
+- Simplified Settings page to API key management only
+
+**Fixed**
+- Dark mode styling for drift check panel (table text visibility, code element contrast)
 
 ### 1.7.1
-- Added global "Scan All" Compose Drift Check panel on the Home page — scans every stack across all connected agents in one click
-- Added Compose Drift Check API endpoint documentation and examples to README
-- Documented agent compatibility requirements for Compose Drift Check
+- Global Version Sync — Scan All button on the Home page detects image tag drift across every stack on every connected agent in one click
+- Per-row Sync buttons and Sync All to update compose files to match running containers
+- Version Sync API endpoint documentation and examples added to README
+- Agent compatibility requirements documented (all instances need v1.7.0+)
 
 ### 1.7.0
-- Added Compose Drift Check: detect and fix image tag drift between running containers and compose files
-- Per-stack Compose Drift Check button in the Compose view for scanning individual stacks
-- Scan for mismatches caused by external update tools (WUD, Watchtower) that update containers without touching compose YAML
-- One-click sync to update compose files to match running container images, preserving YAML comments
+- Compose Version Sync: detect and fix image tag drift between running containers and compose files
+- Scan for mismatches caused by external update tools (WUD, Watchtower)
+- One-click sync to update compose files, preserving YAML comments
 - Sync history with revert capability
-- REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
+- REST API endpoints at `/api/version-sync/`
 - Multi-host support via Dockge agent socket handlers
-- **Note:** All Dockge instances (master + agents) must run v1.7.0+ for Compose Drift Check to work
 
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
@@ -281,32 +295,58 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 - Completes the stack lifecycle API: start, stop, restart, down
 
 ### 1.6.1
-- Added Settings UI for API key management
+- Added Settings UI for update defaults (prune toggles), auto-update scheduler (enable/cron), and API key management
+- Added per-stack auto-update toggle in the Compose view
 - Added `setApiKey` socket handler for setting API keys from the UI
+- Fixed misleading API key storage description in settings
 
 ### 1.6.0
-- Added REST API for external automation (CI/CD pipelines, scripts, monitoring tools)
-- Added version-gated backward compatibility for pre-1.6.0 agents
-- Security: API authentication uses SHA-256 hashed constant-time comparison
-- Security: Stack name validation prevents path traversal in all API endpoints
+
+**REST API**
+- 13 endpoints for managing stacks programmatically
+- Static API key authentication via `X-API-Key` header
+- Stack name validation prevents path traversal
+- Update history tracking with pagination and filtering
+
+**Auto-Update Scheduler**
+- Cron-based scheduled updates with per-stack opt-in
+- Configurable image pruning after updates
+- Self-update detection via sidecar container
+- Image update detection using skopeo
+
+**Agent Backward Compatibility**
+- Version-gated degradation for pre-1.6.0 agents
+- Mixed-version deployments work without breaking satellite nodes
+
+**Infrastructure**
+- Added skopeo to Docker image
+- Knex migration for `stack_setting` and `update_history` tables
 
 ### 1.5.3
-- Security: blocked path traversal via crafted stack names in all stack operations (start, stop, delete, etc.)
-- Security: JWT tokens now expire after 30 days instead of never
-- Security: `resetPassword` no longer leaves the plaintext password on the user model instance
-- Security: compose YAML `x-dockge.urls` now only renders `http:`/`https:` links, blocking `javascript:` XSS
-- Fixed: nightly release workflow now targets `ghcr.io/darthrater78/dockge` instead of the upstream namespace, and uses `GITHUB_TOKEN` instead of a custom PAT
+
+Security hardening:
+- **Path traversal fix** — stack names are now validated in `Stack.getStack()` before any filesystem or Docker operation, preventing directory escape via crafted names
+- **JWT expiry** — tokens now expire after 30 days (previously never expired)
+- **Password model fix** — `resetPassword` no longer leaves the plaintext password on the user instance after updating
+- **XSS fix** — compose `x-dockge.urls` only renders `http:`/`https:` links; `javascript:` and other dangerous protocols are dropped
+- **Nightly workflow fix** — retargeted to `ghcr.io/darthrater78/dockge`, uses `GITHUB_TOKEN` instead of a custom PAT
 
 ### 1.5.2
-- Fixed: adding a new Dockge Agent failed with `SQLITE_ERROR: table agent has no column named name` on any pre-existing install. The original `agent` table migration was edited in place to add a `name` column instead of shipping a follow-up migration, so databases that had already applied the old migration never picked up the column. A new migration backfills it.
+- Fixed: adding a new Dockge Agent failed with `SQLITE_ERROR: table agent has no column named name` on any pre-existing install. The original `agent` table migration was edited in place to add a `name` column instead of shipping a follow-up migration, so databases that had already applied the old migration never picked up the column. A new idempotent migration backfills it.
 
 ### 1.5.1
-- Added Compose override editor (`compose.override.yaml` support)
-- Added optional Cloudflare Turnstile CAPTCHA on login
-- Fixed: post-setup login callback not firing
-- Fixed: potential crash on malformed login payload when Turnstile is enabled
-- Fixed: Turnstile script load failure permanently blocking login
-- Fixed: duplicate Turnstile widgets on repeated Login component mounts
+
+**Fixes**
+- Fixed Update All button crash (undefined `sortedStackList`/`processing`)
+- Fixed post-setup login callback swallowed by missing `captchaToken` argument
+- Fixed potential crash on malformed login payload when Turnstile is enabled
+- Fixed Turnstile script load failure permanently blocking login with no fallback
+- Fixed duplicate Turnstile widgets on repeated Login component mounts
+- Fixed broken i18n lookup on the stack update toast message
+
+**Chores**
+- Replaced `console.*` logging in Turnstile verification with the project's log module
+- Documented Compose Override, Turnstile CAPTCHA, and Update All features in README, including `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` env vars
 
 ## Screenshots
 
