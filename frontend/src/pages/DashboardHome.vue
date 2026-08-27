@@ -519,27 +519,46 @@ table {
 .drift-check-panel {
     .dark & {
         table {
+            --bs-table-color: #{$dark-font-color};
+            --bs-table-bg: transparent;
+            --bs-table-border-color: #{$dark-border-color};
             color: $dark-font-color;
 
             th {
-                color: $dark-font-color3;
+                color: #8b949e;
                 border-color: $dark-border-color;
+                font-weight: 600;
             }
 
             td {
                 border-color: $dark-border-color;
+                color: $dark-font-color;
+            }
+
+            a {
+                color: $primary;
+
+                &:hover {
+                    color: lighten($primary, 10%);
+                }
             }
 
             code {
-                background: rgba(255, 255, 255, 0.06);
-                padding: 2px 5px;
-                border-radius: 3px;
+                color: #e6edf3;
+                background: rgba(110, 118, 129, 0.2);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 12px;
             }
         }
 
         .badge.bg-secondary {
-            background-color: rgba(255, 255, 255, 0.15) !important;
-            color: $dark-font-color;
+            background-color: rgba(110, 118, 129, 0.3) !important;
+            color: #c9d1d9;
+        }
+
+        .text-muted {
+            color: #8b949e !important;
         }
     }
 }
