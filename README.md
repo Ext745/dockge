@@ -234,6 +234,14 @@ Features:
 
 ## Version History
 
+### 1.7.0
+- Added Compose Version Sync: detect and fix image tag drift between running containers and compose files
+- Scan for mismatches caused by external update tools (WUD, Watchtower) that update containers without touching compose YAML
+- One-click sync to update compose files to match running container images, preserving YAML comments
+- Sync history with revert capability
+- REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
+- Multi-host support via Dockge agent socket handlers
+
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
 - Enables HA integration container sensors to display per-container running state
