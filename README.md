@@ -234,6 +234,10 @@ Features:
 
 ## Version History
 
+### 1.6.3
+- Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
+- Enables HA integration container sensors to display per-container running state
+
 ### 1.6.2
 - Added `POST /api/stacks/:name/down` endpoint — stop and remove containers (make stack inactive)
 - Completes the stack lifecycle API: start, stop, restart, down
