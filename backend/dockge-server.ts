@@ -40,7 +40,6 @@ import { UpdateManagementSocketHandler } from "./socket-handlers/update-manageme
 import { Terminal } from "./terminal";
 import { ApiRouter } from "./routers/api-router";
 import { ServerAgentManager } from "./server-agent-manager";
-import { AutoUpdateScheduler } from "./auto-update-scheduler";
 
 export class DockgeServer {
     app : Express;
@@ -85,8 +84,6 @@ export class DockgeServer {
     jwtSecret : string = "";
 
     serverAgentManager! : ServerAgentManager;
-    autoUpdateScheduler? : AutoUpdateScheduler;
-    restartScheduler? : () => void;
 
     stacksDir : string = "";
 
@@ -401,11 +398,6 @@ export class DockgeServer {
         this.serverAgentManager = new ServerAgentManager();
         await this.serverAgentManager.connectAll();
 
-        // Load auto-update cache and start scheduler
-        await Stack.loadAutoUpdateCache();
-        this.autoUpdateScheduler = new AutoUpdateScheduler(this);
-        await this.autoUpdateScheduler.start();
-
         // Listen
         this.httpServer.listen(this.config.port, this.config.hostname, () => {
             if (this.config.hostname) {
@@ -697,10 +689,6 @@ export class DockgeServer {
     shutdownFunction = async (signal : string | undefined) => {
         log.info("server", "Shutdown requested");
         log.info("server", "Called signal: " + signal);
-
-        if (this.autoUpdateScheduler) {
-            this.autoUpdateScheduler.stop();
-        }
 
         this.serverAgentManager?.disconnectAll();
 

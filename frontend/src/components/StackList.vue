@@ -22,11 +22,11 @@
                         <input v-model="searchText" class="form-control search-input" autocomplete="off" />
                     </form>
                 </div>
-                <div class="update-all-wrapper">
-                    <button class="btn btn-primary" :disabled="updatingAll || agentStackList.length === 0" @click="updateAll">
-                        <font-awesome-icon icon="fa-cloud-arrow-down me-1" />
-                        {{ $t("updateAll") }}
-                    </button>
+                <div class="drift-check-wrapper">
+                    <router-link to="/" class="btn btn-normal">
+                        <font-awesome-icon icon="code-compare" class="me-1" />
+                        {{ $t("driftCheck") }}
+                    </router-link>
                 </div>
             </div>
 
@@ -113,7 +113,6 @@ export default {
                 tags: null,
             },
             closedAgents: new Map(),
-            updatingAll: false,
         };
     },
     computed: {
@@ -389,25 +388,6 @@ export default {
                 .forEach(id => this.$root.getSocket().emit("resumeStack", id, () => { }));
 
             this.cancelSelectMode();
-        },
-        updateAll() {
-            this.updatingAll = true;
-            let pending = 0;
-            for (const agent of this.agentStackList) {
-                for (const stack of agent.stacks) {
-                    pending++;
-                    this.$root.emitAgent(agent.endpoint, "updateStack", stack.name, (res) => {
-                        this.$root.toastRes(res);
-                        pending--;
-                        if (pending <= 0) {
-                            this.updatingAll = false;
-                        }
-                    });
-                }
-            }
-            if (pending === 0) {
-                this.updatingAll = false;
-            }
         },
     },
 };

@@ -14,8 +14,6 @@ export type ServiceData = {
     status: string,
     health: string,
     recreateNecessary: boolean,
-    imageUpdateAvailable: boolean,
-    remoteImageDigest: string,
 }
 
 export type SimpleStackData = {
@@ -23,12 +21,10 @@ export type SimpleStackData = {
     status: number,
     started: boolean,
     recreateNecessary: boolean,
-    imageUpdatesAvailable: boolean,
     tags: string[],
     isManagedByDockge: boolean,
     composeFileName: string,
     endpoint: string,
-    autoUpdate?: boolean
 }
 
 export type StackData = SimpleStackData & {

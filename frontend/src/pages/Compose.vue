@@ -36,11 +36,6 @@
                         {{ $t("restartStack") }}
                     </button>
 
-                    <button v-if="!isEditMode" class="btn btn-normal" :disabled="processing" @click="updateStack">
-                        <font-awesome-icon icon="cloud-arrow-down" class="me-1" />
-                        {{ $t("updateStack") }}
-                    </button>
-
                     <button v-if="!isEditMode && active" class="btn btn-normal" :disabled="processing" @click="stopStack">
                         <font-awesome-icon icon="stop" class="me-1" />
                         {{ $t("stopStack") }}
@@ -60,14 +55,9 @@
                     {{ $t("deleteStack") }}
                 </button>
 
-                <BFormCheckbox v-if="!isEditMode && !isAdd" v-model="autoUpdate" switch class="d-inline-block ms-3" @change="toggleAutoUpdate">
-                    <font-awesome-icon icon="clock" class="me-1" />
-                    {{ $t("autoUpdate") }}
-                </BFormCheckbox>
-
                 <button v-if="!isEditMode && !isAdd && active" class="btn btn-normal ms-2" :disabled="versionScanLoading" @click="scanVersionSync">
                     <font-awesome-icon icon="code-compare" class="me-1" />
-                    {{ $t("versionSync") }}
+                    {{ $t("driftCheck") }}
                 </button>
             </div>
 
@@ -84,7 +74,7 @@
                     <div class="d-flex align-items-center mb-2">
                         <h5 class="mb-0 me-auto">
                             <font-awesome-icon icon="code-compare" class="me-1" />
-                            {{ $t("versionSync") }}
+                            {{ $t("driftCheck") }}
                         </h5>
                         <button class="btn btn-sm btn-normal" @click="showVersionSync = false">
                             <font-awesome-icon icon="times" />
@@ -454,7 +444,6 @@ export default {
             newContainerName: "",
             stopServiceStatusTimeout: false,
             stopDockerStatsTimeout: false,
-            autoUpdate: false,
             versionMismatches: [],
             versionScanLoading: false,
             versionSyncLoading: false,
@@ -721,7 +710,6 @@ export default {
             this.$root.emitAgent(this.endpoint, "getStack", this.stack.name, (res) => {
                 if (res.ok) {
                     this.stack = res.stack;
-                    this.autoUpdate = !!res.stack.autoUpdate;
                     this.yamlCodeChange();
                     this.processing = false;
                     this.bindTerminal();
@@ -819,15 +807,6 @@ export default {
             this.processing = true;
 
             this.$root.emitAgent(this.endpoint, "restartStack", this.stack.name, (res) => {
-                this.processing = false;
-                this.$root.toastRes(res);
-            });
-        },
-
-        updateStack() {
-            this.processing = true;
-
-            this.$root.emitAgent(this.endpoint, "updateStack", this.stack.name, (res) => {
                 this.processing = false;
                 this.$root.toastRes(res);
             });
@@ -932,12 +911,6 @@ export default {
 
         stackNameToLowercase() {
             this.stack.name = this.stack?.name?.toLowerCase();
-        },
-
-        toggleAutoUpdate() {
-            this.$root.getSocket().emit("setAutoUpdate", this.stack.name, this.endpoint, this.autoUpdate, (res) => {
-                this.$root.toastRes(res);
-            });
         },
 
         scanVersionSync() {

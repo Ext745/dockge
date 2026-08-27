@@ -20,8 +20,6 @@ import {
 import { InteractiveTerminal, Terminal } from "./terminal";
 import childProcessAsync from "promisify-child-process";
 import { Settings } from "./settings";
-import { ImageRepository } from "./image-repository";
-import { StackSettingsService } from "./stack-settings-service";
 import { ServiceData } from "../common/types";
 
 export class Stack {
@@ -40,27 +38,8 @@ export class Stack {
 
     protected static managedStackList: Map<string, Stack> = new Map();
 
-    static autoUpdateCache: Map<string, boolean> = new Map();
-
-    static autoUpdateCacheKey(stackName: string, endpoint: string): string {
-        return `${stackName}::${endpoint}`;
-    }
-
-    static async loadAutoUpdateCache() {
-        const stacks = await StackSettingsService.getAllAutoUpdateStacks();
-        for (const s of stacks) {
-            Stack.autoUpdateCache.set(Stack.autoUpdateCacheKey(s.stackName, s.endpoint), true);
-        }
-    }
-
-    protected static imageRepository: ImageRepository = ImageRepository.INSTANCE;
     protected _services: Map<string, ServiceData> = new Map();
-    protected _imageUpdatesAvailable: boolean = false;
     protected _recreateNecessary: boolean = false;
-
-    get imageUpdatesAvailable(): boolean {
-        return this._imageUpdatesAvailable;
-    }
 
     get services(): Map<string, ServiceData> {
         return this._services;
@@ -110,8 +89,6 @@ export class Stack {
             }
         }
 
-        const autoUpdate = await StackSettingsService.getAutoUpdate(this.name, endpoint);
-
         let obj = this.toSimpleJSON(endpoint);
         return {
             ...obj,
@@ -119,7 +96,6 @@ export class Stack {
             composeENV: this.composeENV,
             composeOverrideYAML: this.composeOverrideYAML,
             primaryHostname,
-            autoUpdate,
         };
     }
 
@@ -183,27 +159,6 @@ export class Stack {
         }
     }
 
-    async selfUpdate(pruneAfterUpdate: boolean, pruneAllAfterUpdate: boolean): Promise<void> {
-        await childProcessAsync.spawn("docker", [...this.composeArgs, "pull"], {
-            cwd: this.path,
-            encoding: "utf-8",
-        });
-
-        const pruneCmd = pruneAllAfterUpdate ? "--prune-all" : (pruneAfterUpdate ? "--prune" : "");
-        const composeFile = path.join(this.path, this._composeFileName);
-        const cmdParts = [
-            "run", "--rm", "-v", "/var/run/docker.sock:/var/run/docker.sock",
-            "-v", `${composeFile}:${composeFile}:ro`,
-            "docker:cli", "sh", "-c",
-            `sleep 5 && docker compose -f ${composeFile} up -d --remove-orphans` +
-            (pruneAfterUpdate ? ` && docker image prune -f${pruneAllAfterUpdate ? " -a" : ""}` : ""),
-        ];
-        childProcessAsync.spawn("docker", cmdParts, {
-            encoding: "utf-8",
-            detached: true,
-        });
-    }
-
     async updateData() {
         const services = new Map<string, ServiceData>();
 
@@ -224,7 +179,6 @@ export class Stack {
             let createdCount = 0;
             let unhealthy = false;
             this._recreateNecessary = false;
-            this._imageUpdatesAvailable = false;
 
             for (let line of lines) {
                 if (line !== "") {
@@ -240,8 +194,6 @@ export class Stack {
                             status: serviceInfo.Status,
                             health: serviceInfo.Health,
                             recreateNecessary: false,
-                            imageUpdateAvailable: false,
-                            remoteImageDigest: "",
                         }
                     );
 
@@ -279,23 +231,6 @@ export class Stack {
         } catch (e) {
             log.error("updateStackData", e);
         }
-    }
-
-    async updateImageInfos() {
-        Stack.imageRepository.resetStack(this.name);
-        const promises = Array.from(this._services.values()).map(async (serviceData) => {
-            try {
-                const imageInfo = await Stack.imageRepository.update(this.name, serviceData.name, serviceData.image);
-                if (imageInfo.isImageUpdateAvailable()) {
-                    serviceData.imageUpdateAvailable = true;
-                    serviceData.remoteImageDigest = imageInfo.remoteDigest;
-                    this._imageUpdatesAvailable = true;
-                }
-            } catch (e) {
-                log.error("updateImageInfos", "Stack '" + this.name + "' - Image '" + serviceData.image + "': " + e);
-            }
-        });
-        await Promise.all(promises);
     }
 
     validate() {
@@ -669,27 +604,6 @@ export class Stack {
         let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("down"), this.path);
         if (exitCode !== 0) {
             throw new Error("Failed to down, please check the terminal output for more information.");
-        }
-        return exitCode;
-    }
-
-    async update(socket: DockgeSocket) {
-        const terminalName = getComposeTerminalName(socket.endpoint, this.name);
-        let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("pull"), this.path);
-        if (exitCode !== 0) {
-            throw new Error("Failed to pull, please check the terminal output for more information.");
-        }
-
-        // If the stack is not running, we don't need to restart it
-        await this.updateStatus();
-        log.debug("update", "Status: " + this.status);
-        if (this.status !== RUNNING) {
-            return exitCode;
-        }
-
-        exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("up", "-d", "--remove-orphans"), this.path);
-        if (exitCode !== 0) {
-            throw new Error("Failed to restart, please check the terminal output for more information.");
         }
         return exitCode;
     }
