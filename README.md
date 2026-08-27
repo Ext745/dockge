@@ -274,7 +274,7 @@ Features:
 - Per-stack opt-in via `stack_setting` table
 - Configurable cron expression
 - Optional image pruning after updates
-- Self-update detection (Dockge updates itself via sidecar container)
+- Self-update support — when Dockge's own stack is updated, a detached `docker:cli` sidecar container restarts it automatically
 - Update history tracking with success/failure recording
 
 ## Version History
