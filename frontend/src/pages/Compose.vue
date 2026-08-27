@@ -59,6 +59,11 @@
                     <font-awesome-icon icon="trash" class="me-1" />
                     {{ $t("deleteStack") }}
                 </button>
+
+                <BFormCheckbox v-if="!isEditMode && !isAdd" v-model="autoUpdate" switch class="d-inline-block ms-3" @change="toggleAutoUpdate">
+                    <font-awesome-icon icon="clock" class="me-1" />
+                    {{ $t("autoUpdate") }}
+                </BFormCheckbox>
             </div>
 
             <!-- URLs -->
@@ -393,6 +398,7 @@ export default {
             newContainerName: "",
             stopServiceStatusTimeout: false,
             stopDockerStatsTimeout: false,
+            autoUpdate: false,
         };
     },
     computed: {
@@ -655,6 +661,7 @@ export default {
             this.$root.emitAgent(this.endpoint, "getStack", this.stack.name, (res) => {
                 if (res.ok) {
                     this.stack = res.stack;
+                    this.autoUpdate = !!res.stack.autoUpdate;
                     this.yamlCodeChange();
                     this.processing = false;
                     this.bindTerminal();
@@ -865,6 +872,12 @@ export default {
 
         stackNameToLowercase() {
             this.stack.name = this.stack?.name?.toLowerCase();
+        },
+
+        toggleAutoUpdate() {
+            this.$root.getSocket().emit("setAutoUpdate", this.stack.name, this.endpoint, this.autoUpdate, (res) => {
+                this.$root.toastRes(res);
+            });
         },
 
         startService(serviceName) {

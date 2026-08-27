@@ -110,6 +110,8 @@ export class Stack {
             }
         }
 
+        const autoUpdate = await StackSettingsService.getAutoUpdate(this.name, endpoint);
+
         let obj = this.toSimpleJSON(endpoint);
         return {
             ...obj,
@@ -117,6 +119,7 @@ export class Stack {
             composeENV: this.composeENV,
             composeOverrideYAML: this.composeOverrideYAML,
             primaryHostname,
+            autoUpdate,
         };
     }
 
