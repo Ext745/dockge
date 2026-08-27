@@ -1,0 +1,222 @@
+import { Cron } from "croner";
+import { DockgeServer } from "./dockge-server";
+import { StackSettingsService } from "./stack-settings-service";
+import { UpdateHistoryService } from "./update-history-service";
+import { Stack } from "./stack";
+import { Settings } from "./settings";
+import { log } from "./log";
+import childProcessAsync from "promisify-child-process";
+
+export class AutoUpdateScheduler {
+    private cron: Cron | null = null;
+    private server: DockgeServer;
+    private running = false;
+
+    constructor(server: DockgeServer) {
+        this.server = server;
+        server.restartScheduler = () => this.restart();
+    }
+
+    async start() {
+        const enabled = await Settings.get("schedulerEnabled");
+        if (!enabled) {
+            log.info("scheduler", "Auto-update scheduler is disabled");
+            return;
+        }
+
+        const cronExpression = await Settings.get("schedulerCron") ?? "0 3 * * *";
+        log.info("scheduler", `Starting auto-update scheduler with cron: ${cronExpression}`);
+
+        this.cron = new Cron(cronExpression, {
+            protect: true,
+        }, async () => {
+            await this.run();
+        });
+    }
+
+    stop() {
+        if (this.cron) {
+            this.cron.stop();
+            this.cron = null;
+        }
+    }
+
+    async restart() {
+        this.stop();
+        await this.start();
+    }
+
+    getNextRunTime(): string | null {
+        if (!this.cron) {
+            return null;
+        }
+        const next = this.cron.nextRun();
+        return next ? next.toISOString() : null;
+    }
+
+    async run() {
+        if (this.running) {
+            log.info("scheduler", "Skipping auto-update run, previous run still in progress");
+            return;
+        }
+
+        this.running = true;
+        log.info("scheduler", "Starting auto-update run");
+
+        try {
+            const pruneAfterUpdate = await Settings.get("defaultPruneAfterUpdate")
+                ?? await Settings.get("schedulerPruneAfterUpdate") ?? true;
+            const pruneAllAfterUpdate = await Settings.get("defaultPruneAllAfterUpdate")
+                ?? await Settings.get("schedulerPruneAllAfterUpdate") ?? true;
+            const stacks = await StackSettingsService.getAllAutoUpdateStacks();
+
+            const localStacks = stacks.filter(s => s.endpoint === "");
+            const remoteStacks = stacks.filter(s => s.endpoint !== "");
+
+            for (const { stackName } of localStacks) {
+                await this.updateStack(stackName, "", pruneAfterUpdate, pruneAllAfterUpdate);
+            }
+
+            const byEndpoint = new Map<string, string[]>();
+            for (const { stackName, endpoint } of remoteStacks) {
+                const list = byEndpoint.get(endpoint) ?? [];
+                list.push(stackName);
+                byEndpoint.set(endpoint, list);
+            }
+
+            for (const [endpoint, stackNames] of byEndpoint) {
+                for (const stackName of stackNames) {
+                    await this.updateStackViaAgent(stackName, endpoint, pruneAfterUpdate, pruneAllAfterUpdate);
+                }
+            }
+
+            const deleted = await UpdateHistoryService.cleanupOldEntries(90);
+            if (deleted > 0) {
+                log.info("scheduler", `Cleaned up ${deleted} old update history entries`);
+            }
+
+        } catch (e) {
+            log.error("scheduler", "Auto-update run failed: " + (e instanceof Error ? e.message : String(e)));
+        } finally {
+            this.running = false;
+            log.info("scheduler", "Auto-update run completed");
+        }
+    }
+
+    private async updateStack(stackName: string, endpoint: string, pruneAfterUpdate: boolean, pruneAllAfterUpdate: boolean) {
+        const startedAt = new Date().toISOString();
+        const startTime = Date.now();
+        let success = true;
+        let errorMessage: string | null = null;
+
+        let output = "";
+        try {
+            const stack = await Stack.getStack(this.server, stackName);
+            await stack.updateData();
+
+            if (!stack.isStarted) {
+                log.info("scheduler", `Skipping stack ${stackName} (not running)`);
+                return;
+            }
+
+            if (await stack.isSelfStack()) {
+                await stack.selfUpdate(pruneAfterUpdate, pruneAllAfterUpdate);
+                output = "Self-update initiated, process will restart";
+                log.info("scheduler", `Self-update initiated for stack ${stackName}`);
+
+                const completedAt = new Date().toISOString();
+                const durationMs = Date.now() - startTime;
+                await UpdateHistoryService.recordUpdate(
+                    stackName, endpoint, "scheduled", true, output, null,
+                    startedAt, completedAt, durationMs
+                );
+                return;
+            }
+
+            const pullResult = await childProcessAsync.spawn("docker", [...stack.composeArgs, "pull"], {
+                cwd: stack.path,
+                encoding: "utf-8",
+            });
+            output += String(pullResult.stdout || "") + String(pullResult.stderr || "");
+
+            await stack.updateData();
+            if (stack.isStarted) {
+                const upResult = await childProcessAsync.spawn("docker", [...stack.composeArgs, "up", "-d", "--remove-orphans"], {
+                    cwd: stack.path,
+                    encoding: "utf-8",
+                });
+                output += String(upResult.stdout || "") + String(upResult.stderr || "");
+            }
+
+            if (pruneAfterUpdate) {
+                const pruneArgs = ["image", "prune", "-f"];
+                if (pruneAllAfterUpdate) {
+                    pruneArgs.push("-a");
+                }
+                const pruneResult = await childProcessAsync.spawn("docker", pruneArgs, {
+                    encoding: "utf-8",
+                });
+                output += String(pruneResult.stdout || "") + String(pruneResult.stderr || "");
+            }
+
+            await stack.updateImageInfos();
+
+            log.info("scheduler", `Updated stack ${stackName}`);
+        } catch (e) {
+            success = false;
+            errorMessage = e instanceof Error ? e.message : String(e);
+            log.error("scheduler", `Failed to update stack ${stackName}: ${errorMessage}`);
+        }
+
+        const completedAt = new Date().toISOString();
+        const durationMs = Date.now() - startTime;
+        await UpdateHistoryService.recordUpdate(
+            stackName, endpoint, "scheduled", success, output || null, errorMessage,
+            startedAt, completedAt, durationMs
+        );
+    }
+
+    private async updateStackViaAgent(stackName: string, endpoint: string, pruneAfterUpdate: boolean, pruneAllAfterUpdate: boolean) {
+        const startedAt = new Date().toISOString();
+        const startTime = Date.now();
+        let success = true;
+        let errorMessage: string | null = null;
+
+        const supportsExtendedUpdate = this.server.serverAgentManager.supportsFeature(endpoint, "1.6.0");
+
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const callback = (result: { ok?: boolean; msg?: string; selfUpdate?: boolean }) => {
+                    if (result?.ok) {
+                        if (result.selfUpdate) {
+                            log.info("scheduler", `Agent ${endpoint} is self-updating stack ${stackName}, will restart`);
+                        }
+                        resolve();
+                    } else {
+                        reject(new Error(result?.msg ?? "Update failed"));
+                    }
+                };
+
+                if (supportsExtendedUpdate) {
+                    this.server.serverAgentManager.emitToEndpoint(endpoint, "updateStack", stackName, pruneAfterUpdate, pruneAllAfterUpdate, callback).catch(reject);
+                } else {
+                    log.info("scheduler", `Agent ${endpoint} is pre-1.6.0, using legacy updateStack (no prune control)`);
+                    this.server.serverAgentManager.emitToEndpoint(endpoint, "updateStack", stackName, callback).catch(reject);
+                }
+            });
+
+            log.info("scheduler", `Updated stack ${stackName} on endpoint ${endpoint}`);
+        } catch (e) {
+            success = false;
+            errorMessage = e instanceof Error ? e.message : String(e);
+            log.error("scheduler", `Failed to update stack ${stackName} on ${endpoint}: ${errorMessage}`);
+        }
+
+        const completedAt = new Date().toISOString();
+        const durationMs = Date.now() - startTime;
+        await UpdateHistoryService.recordUpdate(
+            stackName, endpoint, "scheduled", success, null, errorMessage,
+            startedAt, completedAt, durationMs
+        );
+    }
+}

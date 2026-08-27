@@ -14,12 +14,15 @@ import {
     EXITED, getCombinedTerminalName,
     getComposeTerminalName, getContainerExecTerminalName,
     PROGRESS_TERMINAL_ROWS,
-    RUNNING, TERMINAL_ROWS,
+    RUNNING, RUNNING_AND_EXITED, UNHEALTHY, TERMINAL_ROWS,
     UNKNOWN
 } from "../common/util-common";
 import { InteractiveTerminal, Terminal } from "./terminal";
 import childProcessAsync from "promisify-child-process";
 import { Settings } from "./settings";
+import { ImageRepository } from "./image-repository";
+import { StackSettingsService } from "./stack-settings-service";
+import { ServiceData } from "../common/types";
 
 export class Stack {
 
@@ -36,6 +39,32 @@ export class Stack {
     protected combinedTerminal? : Terminal;
 
     protected static managedStackList: Map<string, Stack> = new Map();
+
+    static autoUpdateCache: Map<string, boolean> = new Map();
+
+    static autoUpdateCacheKey(stackName: string, endpoint: string): string {
+        return `${stackName}::${endpoint}`;
+    }
+
+    static async loadAutoUpdateCache() {
+        const stacks = await StackSettingsService.getAllAutoUpdateStacks();
+        for (const s of stacks) {
+            Stack.autoUpdateCache.set(Stack.autoUpdateCacheKey(s.stackName, s.endpoint), true);
+        }
+    }
+
+    protected static imageRepository: ImageRepository = ImageRepository.INSTANCE;
+    protected _services: Map<string, ServiceData> = new Map();
+    protected _imageUpdatesAvailable: boolean = false;
+    protected _recreateNecessary: boolean = false;
+
+    get imageUpdatesAvailable(): boolean {
+        return this._imageUpdatesAvailable;
+    }
+
+    get services(): Map<string, ServiceData> {
+        return this._services;
+    }
 
     constructor(server : DockgeServer, name : string, composeYAML? : string, composeENV? : string, composeOverrideYAML? : string, skipFSOperations = false) {
         this.name = name;
@@ -123,6 +152,147 @@ export class Stack {
 
     get status() : number {
         return this._status;
+    }
+
+    get isStarted(): boolean {
+        return this._status == RUNNING || this._status == RUNNING_AND_EXITED || this._status == UNHEALTHY;
+    }
+
+    get composeArgs(): string[] {
+        let options = ["compose", "-f", path.join(this.path, this._composeFileName), "--project-directory", this.path];
+        return options;
+    }
+
+    async isSelfStack(): Promise<boolean> {
+        const hostname = process.env.HOSTNAME;
+        if (!hostname) {
+            return false;
+        }
+        try {
+            const result = await childProcessAsync.spawn("docker", [...this.composeArgs, "ps", "-q"], {
+                cwd: this.path,
+                encoding: "utf-8",
+            });
+            const containerIds = result.stdout?.toString().trim().split("\n").filter(Boolean) || [];
+            return containerIds.includes(hostname);
+        } catch {
+            return false;
+        }
+    }
+
+    async selfUpdate(pruneAfterUpdate: boolean, pruneAllAfterUpdate: boolean): Promise<void> {
+        await childProcessAsync.spawn("docker", [...this.composeArgs, "pull"], {
+            cwd: this.path,
+            encoding: "utf-8",
+        });
+
+        const pruneCmd = pruneAllAfterUpdate ? "--prune-all" : (pruneAfterUpdate ? "--prune" : "");
+        const composeFile = path.join(this.path, this._composeFileName);
+        const cmdParts = [
+            "run", "--rm", "-v", "/var/run/docker.sock:/var/run/docker.sock",
+            "-v", `${composeFile}:${composeFile}:ro`,
+            "docker:cli", "sh", "-c",
+            `sleep 5 && docker compose -f ${composeFile} up -d --remove-orphans` +
+            (pruneAfterUpdate ? ` && docker image prune -f${pruneAllAfterUpdate ? " -a" : ""}` : ""),
+        ];
+        childProcessAsync.spawn("docker", cmdParts, {
+            encoding: "utf-8",
+            detached: true,
+        });
+    }
+
+    async updateData() {
+        const services = new Map<string, ServiceData>();
+
+        try {
+            const res = await childProcessAsync.spawn("docker", [ ...this.composeArgs, "ps", "--all", "--format", "json" ], {
+                cwd: this.path,
+                encoding: "utf-8",
+            });
+
+            if (!res.stdout) {
+                return;
+            }
+
+            const lines = res.stdout?.toString().split("\n");
+
+            let runningCount = 0;
+            let exitedCount = 0;
+            let createdCount = 0;
+            let unhealthy = false;
+            this._recreateNecessary = false;
+            this._imageUpdatesAvailable = false;
+
+            for (let line of lines) {
+                if (line !== "") {
+                    const serviceInfo = JSON.parse(line);
+
+                    services.set(
+                        serviceInfo.Service,
+                        {
+                            name: serviceInfo.Service,
+                            containerName: serviceInfo.Name,
+                            image: serviceInfo.Image,
+                            state: serviceInfo.State,
+                            status: serviceInfo.Status,
+                            health: serviceInfo.Health,
+                            recreateNecessary: false,
+                            imageUpdateAvailable: false,
+                            remoteImageDigest: "",
+                        }
+                    );
+
+                    if (serviceInfo.State === "running") {
+                        runningCount++;
+                    } else if (serviceInfo.State === "exited") {
+                        exitedCount++;
+                    } else if (serviceInfo.State === "created") {
+                        createdCount++;
+                    }
+
+                    if (serviceInfo.Health === "unhealthy") {
+                        unhealthy = true;
+                    }
+                }
+            }
+
+            if (runningCount > 0 && exitedCount > 0) {
+                this._status = RUNNING_AND_EXITED;
+            } else if (runningCount > 0) {
+                this._status = RUNNING;
+            } else if (exitedCount > 0) {
+                this._status = EXITED;
+            } else if (createdCount > 0) {
+                this._status = CREATED_STACK;
+            } else {
+                this._status = UNKNOWN;
+            }
+
+            if (unhealthy) {
+                this._status = UNHEALTHY;
+            }
+
+            this._services = services;
+        } catch (e) {
+            log.error("updateStackData", e);
+        }
+    }
+
+    async updateImageInfos() {
+        Stack.imageRepository.resetStack(this.name);
+        const promises = Array.from(this._services.values()).map(async (serviceData) => {
+            try {
+                const imageInfo = await Stack.imageRepository.update(this.name, serviceData.name, serviceData.image);
+                if (imageInfo.isImageUpdateAvailable()) {
+                    serviceData.imageUpdateAvailable = true;
+                    serviceData.remoteImageDigest = imageInfo.remoteDigest;
+                    this._imageUpdatesAvailable = true;
+                }
+            } catch (e) {
+                log.error("updateImageInfos", "Stack '" + this.name + "' - Image '" + serviceData.image + "': " + e);
+            }
+        });
+        await Promise.all(promises);
     }
 
     validate() {

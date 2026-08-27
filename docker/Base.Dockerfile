@@ -16,5 +16,6 @@ RUN apt update && apt install --yes --no-install-recommends \
     && apt --yes --no-install-recommends install \
          docker-ce-cli \
          docker-compose-plugin \
+         skopeo \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g tsx

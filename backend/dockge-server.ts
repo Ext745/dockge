@@ -36,7 +36,11 @@ import { AgentProxySocketHandler } from "./socket-handlers/agent-proxy-socket-ha
 import { AgentSocketHandler } from "./agent-socket-handler";
 import { AgentSocket } from "../common/agent-socket";
 import { ManageAgentSocketHandler } from "./socket-handlers/manage-agent-socket-handler";
+import { UpdateManagementSocketHandler } from "./socket-handlers/update-management-socket-handler";
 import { Terminal } from "./terminal";
+import { ApiRouter } from "./routers/api-router";
+import { ServerAgentManager } from "./server-agent-manager";
+import { AutoUpdateScheduler } from "./auto-update-scheduler";
 
 export class DockgeServer {
     app : Express;
@@ -50,6 +54,7 @@ export class DockgeServer {
      * List of express routers
      */
     routerList : Router[] = [
+        new ApiRouter(),
         new MainRouter(),
     ];
 
@@ -59,6 +64,7 @@ export class DockgeServer {
     socketHandlerList : SocketHandler[] = [
         new MainSocketHandler(),
         new ManageAgentSocketHandler(),
+        new UpdateManagementSocketHandler(),
     ];
 
     agentProxySocketHandler = new AgentProxySocketHandler();
@@ -77,6 +83,10 @@ export class DockgeServer {
     needSetup = false;
 
     jwtSecret : string = "";
+
+    serverAgentManager! : ServerAgentManager;
+    autoUpdateScheduler? : AutoUpdateScheduler;
+    restartScheduler? : () => void;
 
     stacksDir : string = "";
 
@@ -387,6 +397,15 @@ export class DockgeServer {
             this.needSetup = true;
         }
 
+        // Initialize server agent manager
+        this.serverAgentManager = new ServerAgentManager();
+        await this.serverAgentManager.connectAll();
+
+        // Load auto-update cache and start scheduler
+        await Stack.loadAutoUpdateCache();
+        this.autoUpdateScheduler = new AutoUpdateScheduler(this);
+        await this.autoUpdateScheduler.start();
+
         // Listen
         this.httpServer.listen(this.config.port, this.config.hostname, () => {
             if (this.config.hostname) {
@@ -675,15 +694,19 @@ export class DockgeServer {
      * Stops all monitors and closes the database connection.
      * @param signal The signal that triggered this function to be called.
      */
-    async shutdownFunction(signal : string | undefined) {
+    shutdownFunction = async (signal : string | undefined) => {
         log.info("server", "Shutdown requested");
         log.info("server", "Called signal: " + signal);
 
-        // TODO: Close all terminals?
+        if (this.autoUpdateScheduler) {
+            this.autoUpdateScheduler.stop();
+        }
+
+        this.serverAgentManager?.disconnectAll();
 
         await Database.close();
         Settings.stopCacheCleaner();
-    }
+    };
 
     /**
      * Final function called before application exits

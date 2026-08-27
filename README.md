@@ -25,6 +25,9 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 - 🧩 (1.5.1 🆕) Compose override editor - Edit `compose.override.yaml` alongside your main compose file, when present
 - 🔐 (1.5.1 🆕) Optional Cloudflare Turnstile CAPTCHA on login
 - 🔄 (1.5.1 🆕) "Update All" button to pull and update every stack at once
+- 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
+- ⏰ (1.6.0 🆕) Scheduled auto-updates with per-stack opt-in and cron control
+- 🔍 (1.6.0 🆕) Image update detection via remote registry digest comparison
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -148,7 +151,99 @@ To require a CAPTCHA challenge on the login page, set both of the following envi
 
 Keys can be created in the [Cloudflare dashboard](https://developers.cloudflare.com/turnstile/get-started/).
 
+## REST API
+
+Dockge v1.6.0 introduces a REST API for managing stacks programmatically. The API runs on the master node only — agents do not need any changes and continue to communicate via Socket.IO.
+
+### Authentication
+
+All API endpoints require a static API key passed in the `X-API-Key` header.
+
+Set your API key via environment variable:
+```
+      - DOCKGE_API_KEY=your-secret-api-key-here
+```
+
+Or set it at runtime through the UI/socket settings. The key is stored as a SHA-256 hash.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/stacks` | List all stacks (local and remote agents) |
+| `GET` | `/api/stacks/:name` | Get details for a single stack |
+| `POST` | `/api/stacks/:name/start` | Start a stack |
+| `POST` | `/api/stacks/:name/stop` | Stop a stack |
+| `POST` | `/api/stacks/:name/restart` | Restart a stack |
+| `POST` | `/api/stacks/:name/update` | Pull latest images and restart |
+| `POST` | `/api/stacks/:name/down` | Tear down a stack |
+| `POST` | `/api/stacks/:name/check-updates` | Check for available image updates |
+| `POST` | `/api/update-all` | Update all stacks with auto-update enabled |
+| `GET` | `/api/scheduler` | Get scheduler settings and next run time |
+| `PUT` | `/api/scheduler` | Update scheduler settings (cron, prune options) |
+| `POST` | `/api/scheduler/trigger` | Trigger an immediate auto-update run |
+| `GET` | `/api/update-history` | Query update history with pagination |
+
+### Query Parameters
+
+**`GET /api/stacks`** and **`GET /api/stacks/:name`** accept:
+- `?endpoint=hostname:port` — target a specific remote agent
+
+**`POST /api/stacks/:name/update`** accepts JSON body:
+- `pruneAfterUpdate` (boolean) — remove dangling images after update
+- `pruneAllAfterUpdate` (boolean) — remove all unused images after update
+
+**`GET /api/update-history`** accepts:
+- `?page=1&limit=20` — pagination
+- `?stackName=mystack` — filter by stack name
+- `?endpoint=hostname:port` — filter by agent endpoint
+
+### Example
+
+```bash
+# List all stacks
+curl -H "X-API-Key: your-key" http://localhost:5001/api/stacks
+
+# Update a specific stack
+curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/stacks/myapp/update
+
+# Check for image updates
+curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/stacks/myapp/check-updates
+
+# Trigger scheduled auto-update immediately
+curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/scheduler/trigger
+```
+
+### Agent Compatibility
+
+The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 versions are supported with graceful degradation:
+- Stack listing and updates fall back to legacy call signatures
+- Image update checks return a notice instead of failing
+- Unsupported agents are listed in the response so you know which nodes need upgrading
+
+## Auto-Update Scheduler
+
+Per-stack auto-updates can be enabled through the API or Socket.IO interface. The scheduler runs on a configurable cron schedule (default: `0 3 * * *` — daily at 3 AM).
+
+Features:
+- Per-stack opt-in via `stack_setting` table
+- Configurable cron expression
+- Optional image pruning after updates
+- Self-update detection (Dockge updates itself via sidecar container)
+- Update history tracking with success/failure recording
+
 ## Version History
+
+### 1.6.0
+- Added REST API for external automation (CI/CD pipelines, scripts, monitoring tools)
+- Added scheduled auto-update system with per-stack opt-in and cron control
+- Added image update detection using remote registry digest comparison (via `skopeo`)
+- Added update history tracking with pagination and filtering
+- Added per-stack auto-update settings (enable/disable per stack and endpoint)
+- Added version-gated backward compatibility for pre-1.6.0 agents
+- Added `skopeo` to Docker image for registry digest queries
+- Security: API authentication uses SHA-256 hashed constant-time comparison
+- Security: Stack name validation prevents path traversal in all API endpoints
 
 ### 1.5.3
 - Security: blocked path traversal via crafted stack names in all stack operations (start, stop, delete, etc.)
