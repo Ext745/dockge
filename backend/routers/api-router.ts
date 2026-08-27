@@ -230,6 +230,7 @@ export class ApiRouter extends Router {
 
                 const stackList = await Stack.getStackList(server, true);
                 for (const [name, stack] of stackList) {
+                    await stack.updateData();
                     stacks.push({
                         name,
                         status: STATUS_NAMES[stack.status] || "unknown",
