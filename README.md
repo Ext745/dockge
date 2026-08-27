@@ -287,7 +287,11 @@ Features:
 - Sync history with revert capability
 - REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
 - Multi-host support via Dockge agent socket handlers
-- **Note:** All Dockge instances (master + agents) must run v1.7.0 for Version Sync to work
+- **Note:** All Dockge instances (master + agents) must run v1.7.0+ for Version Sync to work
+
+### 1.7.1
+- Added global "Scan All" Version Sync panel on the Home page — scans every stack across all connected agents in one click
+- Added Version Sync API endpoints and agent compatibility docs to README
 
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
