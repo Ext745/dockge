@@ -10,6 +10,8 @@ import childProcessAsync from "promisify-child-process";
 import crypto from "crypto";
 import { StackSettingsService } from "../stack-settings-service";
 import { UpdateHistoryService } from "../update-history-service";
+import { VersionSyncHistoryService } from "../version-sync-history-service";
+import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
 import { Settings } from "../settings";
 import { Cron } from "croner";
 
@@ -944,6 +946,121 @@ export class ApiRouter extends Router {
             } catch (e) {
                 log.error("api", "PUT /api/scheduler error: " + e);
                 res.status(500).json({ ok: false, error: "Failed to update scheduler settings" });
+            }
+        });
+
+        // GET /api/version-sync/scan — scan for version mismatches
+        router.get("/api/version-sync/scan", async (req: Request, res: Response) => {
+            try {
+                const stackName = req.query.stack as string | undefined;
+                let result;
+                if (stackName && VALID_STACK_NAME.test(stackName)) {
+                    result = await scanStack(server.stacksDir, stackName);
+                } else {
+                    result = await scanAllStacks(server.stacksDir);
+                }
+                res.json({ ok: true, ...result });
+            } catch (e) {
+                log.error("api", "GET /api/version-sync/scan error: " + e);
+                res.status(500).json({ ok: false, error: "Failed to scan for version mismatches" });
+            }
+        });
+
+        // POST /api/version-sync/sync — sync a specific service
+        router.post("/api/version-sync/sync", async (req: Request, res: Response) => {
+            try {
+                const { stackName, service, newImage } = req.body;
+                if (typeof stackName !== "string" || typeof service !== "string" || typeof newImage !== "string") {
+                    res.status(400).json({ ok: false, error: "stackName, service, and newImage are required strings" });
+                    return;
+                }
+                if (!VALID_STACK_NAME.test(stackName)) {
+                    res.status(400).json({ ok: false, error: "Invalid stack name" });
+                    return;
+                }
+
+                const scanResult = await scanStack(server.stacksDir, stackName);
+                const mismatch = scanResult.mismatches.find(m => m.service === service);
+                if (!mismatch) {
+                    res.status(404).json({ ok: false, error: "No mismatch found for this service" });
+                    return;
+                }
+
+                const { oldImage } = syncComposeFile(mismatch.composePath, service, newImage, server.stacksDir);
+                await VersionSyncHistoryService.recordSync(stackName, "", service, oldImage, newImage, mismatch.composePath, false);
+
+                res.json({ ok: true, stackName, service, oldImage, newImage });
+            } catch (e) {
+                log.error("api", "POST /api/version-sync/sync error: " + e);
+                res.status(500).json({ ok: false, error: "Failed to sync version" });
+            }
+        });
+
+        // POST /api/version-sync/sync-all — sync all mismatches
+        router.post("/api/version-sync/sync-all", async (req: Request, res: Response) => {
+            try {
+                const stackName = req.query.stack as string | undefined;
+                let scanResult;
+                if (stackName && VALID_STACK_NAME.test(stackName)) {
+                    scanResult = await scanStack(server.stacksDir, stackName);
+                } else {
+                    scanResult = await scanAllStacks(server.stacksDir);
+                }
+
+                const synced: { stackName: string; service: string; oldImage: string; newImage: string }[] = [];
+                for (const mismatch of scanResult.mismatches) {
+                    const { oldImage } = syncComposeFile(mismatch.composePath, mismatch.service, mismatch.runningImage, server.stacksDir);
+                    await VersionSyncHistoryService.recordSync(mismatch.stackName, "", mismatch.service, oldImage, mismatch.runningImage, mismatch.composePath, false);
+                    synced.push({ stackName: mismatch.stackName, service: mismatch.service, oldImage, newImage: mismatch.runningImage });
+                }
+
+                res.json({ ok: true, synced, count: synced.length });
+            } catch (e) {
+                log.error("api", "POST /api/version-sync/sync-all error: " + e);
+                res.status(500).json({ ok: false, error: "Failed to sync all versions" });
+            }
+        });
+
+        // GET /api/version-sync/history
+        router.get("/api/version-sync/history", async (req: Request, res: Response) => {
+            try {
+                const options: Record<string, unknown> = {};
+                if (req.query.limit) options.limit = parseInt(req.query.limit as string, 10);
+                if (req.query.offset) options.offset = parseInt(req.query.offset as string, 10);
+                if (req.query.stack) options.stackName = req.query.stack as string;
+                if (req.query.service) options.service = req.query.service as string;
+
+                const result = await VersionSyncHistoryService.getHistory(options);
+                res.json({ ok: true, ...result });
+            } catch (e) {
+                log.error("api", "GET /api/version-sync/history error: " + e);
+                res.status(500).json({ ok: false, error: "Failed to get version sync history" });
+            }
+        });
+
+        // POST /api/version-sync/revert
+        router.post("/api/version-sync/revert", async (req: Request, res: Response) => {
+            try {
+                const { stackName, service } = req.body;
+                if (typeof stackName !== "string" || typeof service !== "string") {
+                    res.status(400).json({ ok: false, error: "stackName and service are required strings" });
+                    return;
+                }
+
+                const revertable = await VersionSyncHistoryService.getRevertableEntries(stackName, service);
+                if (revertable.length === 0) {
+                    res.status(404).json({ ok: false, error: "No revertable sync found" });
+                    return;
+                }
+
+                const entry = revertable[0];
+                syncComposeFile(entry.composePath, entry.service, entry.oldImage, server.stacksDir);
+                await VersionSyncHistoryService.recordSync(entry.stackName, "", entry.service, entry.newImage, entry.oldImage, entry.composePath, true);
+
+                res.json({ ok: true, stackName, service, revertedTo: entry.oldImage });
+            } catch (e) {
+                log.error("api", "POST /api/version-sync/revert error: " + e);
+                res.status(500).json({ ok: false, error: "Failed to revert version sync" });
             }
         });
 

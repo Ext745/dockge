@@ -3,6 +3,8 @@ import { DockgeServer } from "../dockge-server";
 import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationError } from "../util-server";
 import { Stack } from "../stack";
 import { AgentSocket } from "../../common/agent-socket";
+import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
+import { VersionSyncHistoryService } from "../version-sync-history-service";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -313,6 +315,148 @@ export class DockerSocketHandler extends AgentSocketHandler {
                     ok: true,
                     msg: "Service " + serviceName + " restarted"
                 }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("scanVersionSync", async (stackName: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                let result;
+                if (typeof stackName === "string" && stackName !== "") {
+                    result = await scanStack(server.stacksDir, stackName);
+                } else {
+                    result = await scanAllStacks(server.stacksDir);
+                }
+
+                callbackResult({
+                    ok: true,
+                    data: result,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("syncVersion", async (stackName: unknown, serviceName: unknown, newImage: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                if (typeof stackName !== "string") {
+                    throw new ValidationError("Stack name must be a string");
+                }
+                if (typeof serviceName !== "string") {
+                    throw new ValidationError("Service name must be a string");
+                }
+                if (typeof newImage !== "string") {
+                    throw new ValidationError("New image must be a string");
+                }
+
+                const scanResult = await scanStack(server.stacksDir, stackName);
+                const mismatch = scanResult.mismatches.find(m => m.service === serviceName);
+
+                if (!mismatch) {
+                    throw new ValidationError("No mismatch found for this service");
+                }
+
+                const { oldImage } = syncComposeFile(mismatch.composePath, serviceName, newImage, server.stacksDir);
+
+                await VersionSyncHistoryService.recordSync(
+                    stackName, socket.endpoint, serviceName, oldImage, newImage, mismatch.composePath, false
+                );
+
+                callbackResult({
+                    ok: true,
+                    msg: "versionSynced",
+                    msgi18n: true,
+                    data: { stackName, service: serviceName, oldImage, newImage },
+                }, callback);
+
+                server.sendStackList();
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("syncAllVersions", async (stackName: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                let scanResult;
+                if (typeof stackName === "string" && stackName !== "") {
+                    scanResult = await scanStack(server.stacksDir, stackName);
+                } else {
+                    scanResult = await scanAllStacks(server.stacksDir);
+                }
+
+                const synced: { stackName: string; service: string; oldImage: string; newImage: string }[] = [];
+
+                for (const mismatch of scanResult.mismatches) {
+                    const { oldImage } = syncComposeFile(
+                        mismatch.composePath, mismatch.service, mismatch.runningImage, server.stacksDir
+                    );
+
+                    await VersionSyncHistoryService.recordSync(
+                        mismatch.stackName, socket.endpoint, mismatch.service,
+                        oldImage, mismatch.runningImage, mismatch.composePath, false
+                    );
+
+                    synced.push({
+                        stackName: mismatch.stackName,
+                        service: mismatch.service,
+                        oldImage,
+                        newImage: mismatch.runningImage,
+                    });
+                }
+
+                callbackResult({
+                    ok: true,
+                    msg: "allVersionsSynced",
+                    msgi18n: true,
+                    data: { synced, count: synced.length },
+                }, callback);
+
+                server.sendStackList();
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("revertVersionSync", async (stackName: unknown, serviceName: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                if (typeof stackName !== "string") {
+                    throw new ValidationError("Stack name must be a string");
+                }
+                if (typeof serviceName !== "string") {
+                    throw new ValidationError("Service name must be a string");
+                }
+
+                const revertable = await VersionSyncHistoryService.getRevertableEntries(stackName, serviceName);
+
+                if (revertable.length === 0) {
+                    throw new ValidationError("No revertable sync found for this service");
+                }
+
+                const entry = revertable[0];
+                syncComposeFile(entry.composePath, entry.service, entry.oldImage, server.stacksDir);
+
+                await VersionSyncHistoryService.recordSync(
+                    entry.stackName, socket.endpoint, entry.service,
+                    entry.newImage, entry.oldImage, entry.composePath, true
+                );
+
+                callbackResult({
+                    ok: true,
+                    msg: "versionReverted",
+                    msgi18n: true,
+                    data: { stackName, service: serviceName, revertedTo: entry.oldImage },
+                }, callback);
+
+                server.sendStackList();
             } catch (e) {
                 callbackError(e, callback);
             }

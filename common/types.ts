@@ -90,3 +90,29 @@ export type DockerArtefactData = {
     info: DockerArtefactInfo,
     data: DockerArtefactItem[]
 }
+
+export type VersionMismatchData = {
+    stackName: string,
+    service: string,
+    composeImage: string,
+    runningImage: string,
+    composePath: string,
+}
+
+export type VersionScanResultData = {
+    mismatches: VersionMismatchData[],
+    matched: { stackName: string; service: string; image: string }[],
+    unmatchedServices: { stackName: string; service: string; composeImage: string }[],
+}
+
+export type VersionSyncHistoryEntryData = {
+    id: number,
+    stackName: string,
+    endpoint: string,
+    service: string,
+    oldImage: string,
+    newImage: string,
+    composePath: string,
+    isRevert: boolean,
+    createdAt: string,
+}
