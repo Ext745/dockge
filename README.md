@@ -16,7 +16,6 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 
 - 🧑‍💼 Manage your `compose.yaml` files
   - Create/Edit/Start/Stop/Restart/Delete
-  - Update Docker Images
 - ⌨️ Interactive Editor for `compose.yaml`
 - 🦦 Interactive Web Terminal
 - 🕷️ (1.4.0 🆕) Multiple agents support - You can manage multiple stacks from different Docker hosts in one single interface
@@ -24,11 +23,8 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 - 📙 File based structure - Dockge won't kidnap your compose files, they are stored on your drive as usual. You can interact with them using normal `docker compose` commands
 - 🧩 (1.5.1 🆕) Compose override editor - Edit `compose.override.yaml` alongside your main compose file, when present
 - 🔐 (1.5.1 🆕) Optional Cloudflare Turnstile CAPTCHA on login
-- 🔄 (1.5.1 🆕) "Update All" button to pull and update every stack at once
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
-- ⏰ (1.6.0 🆕) Scheduled auto-updates with per-stack opt-in and cron control
-- 🔍 (1.6.0 🆕) Image update detection via remote registry digest comparison
-- 🔄 (1.7.0 🆕) Compose Version Sync — detect and fix image tag drift caused by external update tools (WUD, Watchtower)
+- 🔄 (1.8.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -176,14 +172,7 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 | `POST` | `/api/stacks/:name/start` | Start a stack |
 | `POST` | `/api/stacks/:name/stop` | Stop a stack |
 | `POST` | `/api/stacks/:name/restart` | Restart a stack |
-| `POST` | `/api/stacks/:name/update` | Pull latest images and restart |
 | `POST` | `/api/stacks/:name/down` | Tear down a stack |
-| `POST` | `/api/stacks/:name/check-updates` | Check for available image updates |
-| `POST` | `/api/update-all` | Update all stacks with auto-update enabled |
-| `GET` | `/api/scheduler` | Get scheduler settings and next run time |
-| `PUT` | `/api/scheduler` | Update scheduler settings (cron, prune options) |
-| `POST` | `/api/scheduler/trigger` | Trigger an immediate auto-update run |
-| `GET` | `/api/update-history` | Query update history with pagination |
 | `GET` | `/api/version-sync/scan` | Scan for image tag mismatches between compose files and running containers |
 | `POST` | `/api/version-sync/sync` | Sync a specific service's compose image to the running version |
 | `POST` | `/api/version-sync/sync-all` | Sync all mismatched services for a stack |
@@ -194,15 +183,6 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 
 **`GET /api/stacks`** and **`GET /api/stacks/:name`** accept:
 - `?endpoint=hostname:port` — target a specific remote agent
-
-**`POST /api/stacks/:name/update`** accepts JSON body:
-- `pruneAfterUpdate` (boolean) — remove dangling images after update
-- `pruneAllAfterUpdate` (boolean) — remove all unused images after update
-
-**`GET /api/update-history`** accepts:
-- `?page=1&limit=20` — pagination
-- `?stackName=mystack` — filter by stack name
-- `?endpoint=hostname:port` — filter by agent endpoint
 
 **`GET /api/version-sync/scan`** accepts:
 - `?stackName=mystack` — scan a specific stack (omit to scan all)
@@ -231,15 +211,6 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 # List all stacks
 curl -H "X-API-Key: your-key" http://localhost:5001/api/stacks
 
-# Update a specific stack
-curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/stacks/myapp/update
-
-# Check for image updates
-curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/stacks/myapp/check-updates
-
-# Trigger scheduled auto-update immediately
-curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/scheduler/trigger
-
 # Scan all stacks for compose/running image mismatches
 curl -H "X-API-Key: your-key" http://localhost:5001/api/version-sync/scan
 
@@ -260,39 +231,36 @@ curl -X POST -H "X-API-Key: your-key" -H "Content-Type: application/json" \
 ### Agent Compatibility
 
 The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 versions are supported with graceful degradation:
-- Stack listing and updates fall back to legacy call signatures
-- Image update checks return a notice instead of failing
+- Stack listing falls back to legacy call signatures
 - Unsupported agents are listed in the response so you know which nodes need upgrading
 
-**Version Sync requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Version Sync to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
-
-## Auto-Update Scheduler
-
-Per-stack auto-updates can be enabled through the API or Socket.IO interface. The scheduler runs on a configurable cron schedule (default: `0 3 * * *` — daily at 3 AM).
-
-Features:
-- Per-stack opt-in via `stack_setting` table
-- Configurable cron expression
-- Optional image pruning after updates
-- Self-update support — when Dockge's own stack is updated, a detached `docker:cli` sidecar container restarts it automatically
-- Update history tracking with success/failure recording
+**Compose Drift Check requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Compose Drift Check to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
 
 ## Version History
 
+### 1.8.0
+- Removed image update detection feature (skopeo-based registry digest comparison)
+- Removed auto-update scheduler (cron-based), per-stack auto-update toggle, and "Update All" button
+- Removed `skopeo` from Docker image dependencies
+- Renamed "Version Sync" to "Compose Drift Check" across the UI
+- Replaced "Update All" sidebar button with "Compose Drift Check" link
+- Simplified Settings page — removed update defaults and scheduler UI, kept API key management
+- Fixed dark mode styling for drift check panel (table text, code element contrast)
+
 ### 1.7.1
-- Added global "Scan All" Version Sync panel on the Home page — scans every stack across all connected agents in one click
-- Added Version Sync API endpoint documentation and examples to README
-- Documented agent compatibility requirements for Version Sync
+- Added global "Scan All" Compose Drift Check panel on the Home page — scans every stack across all connected agents in one click
+- Added Compose Drift Check API endpoint documentation and examples to README
+- Documented agent compatibility requirements for Compose Drift Check
 
 ### 1.7.0
-- Added Compose Version Sync: detect and fix image tag drift between running containers and compose files
-- Per-stack Version Sync button in the Compose view for scanning individual stacks
+- Added Compose Drift Check: detect and fix image tag drift between running containers and compose files
+- Per-stack Compose Drift Check button in the Compose view for scanning individual stacks
 - Scan for mismatches caused by external update tools (WUD, Watchtower) that update containers without touching compose YAML
 - One-click sync to update compose files to match running container images, preserving YAML comments
 - Sync history with revert capability
 - REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
 - Multi-host support via Dockge agent socket handlers
-- **Note:** All Dockge instances (master + agents) must run v1.7.0+ for Version Sync to work
+- **Note:** All Dockge instances (master + agents) must run v1.7.0+ for Compose Drift Check to work
 
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
@@ -303,18 +271,12 @@ Features:
 - Completes the stack lifecycle API: start, stop, restart, down
 
 ### 1.6.1
-- Added Settings UI for update defaults (prune toggles), auto-update scheduler (enable/cron), and API key management
-- Added per-stack auto-update toggle in the Compose view
+- Added Settings UI for API key management
 - Added `setApiKey` socket handler for setting API keys from the UI
 
 ### 1.6.0
 - Added REST API for external automation (CI/CD pipelines, scripts, monitoring tools)
-- Added scheduled auto-update system with per-stack opt-in and cron control
-- Added image update detection using remote registry digest comparison (via `skopeo`)
-- Added update history tracking with pagination and filtering
-- Added per-stack auto-update settings (enable/disable per stack and endpoint)
 - Added version-gated backward compatibility for pre-1.6.0 agents
-- Added `skopeo` to Docker image for registry digest queries
 - Security: API authentication uses SHA-256 hashed constant-time comparison
 - Security: Stack name validation prevents path traversal in all API endpoints
 
@@ -331,12 +293,9 @@ Features:
 ### 1.5.1
 - Added Compose override editor (`compose.override.yaml` support)
 - Added optional Cloudflare Turnstile CAPTCHA on login
-- Added "Update All" button to StackList
-- Fixed: Update All button crashing due to undefined state reference
 - Fixed: post-setup login callback not firing
 - Fixed: potential crash on malformed login payload when Turnstile is enabled
 - Fixed: Turnstile script load failure permanently blocking login
-- Fixed: i18n lookup breaking on the stack update toast message
 - Fixed: duplicate Turnstile widgets on repeated Login component mounts
 
 ## Screenshots
