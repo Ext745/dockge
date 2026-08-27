@@ -581,6 +581,53 @@ export class ApiRouter extends Router {
             }
         });
 
+        // POST /api/stacks/:name/down — stop and remove containers (inactive)
+        router.post("/api/stacks/:name/down", validateStackName, async (req: Request, res: Response) => {
+            try {
+                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
+
+                if (!validateEndpoint(endpoint)) {
+                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    return;
+                }
+
+                if (endpoint && endpoint !== "") {
+                    const result = await emitToAgent(server, endpoint, "downStack", req.params.name);
+                    if (result.ok) {
+                        res.json({ ok: true, message: `Stack '${req.params.name}' downed on ${endpoint}`, endpoint });
+                    } else {
+                        res.status(500).json({ ok: false, error: result.msg || "Down failed on agent" });
+                    }
+                    return;
+                }
+
+                const stack = await Stack.getStack(server, req.params.name, false);
+
+                if (await stack.isSelfStack()) {
+                    res.status(400).json({ ok: false, error: "Cannot down the stack that contains Dockge itself" });
+                    return;
+                }
+
+                await childProcessAsync.spawn("docker", [...stack.composeArgs, "down"], {
+                    cwd: stack.path,
+                    encoding: "utf-8",
+                });
+
+                res.json({
+                    ok: true,
+                    message: `Stack '${req.params.name}' downed`,
+                    endpoint: "",
+                });
+            } catch (e) {
+                if (e instanceof ValidationError) {
+                    res.status(404).json({ ok: false, error: "Stack not found" });
+                } else {
+                    log.error("api", `POST /api/stacks/${req.params.name}/down error: ${e}`);
+                    res.status(500).json({ ok: false, error: "Failed to down stack" });
+                }
+            }
+        });
+
         // POST /api/system/prune
         router.post("/api/system/prune", async (req: Request, res: Response) => {
             try {

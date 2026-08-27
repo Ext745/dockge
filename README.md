@@ -234,6 +234,10 @@ Features:
 
 ## Version History
 
+### 1.6.2
+- Added `POST /api/stacks/:name/down` endpoint — stop and remove containers (make stack inactive)
+- Completes the stack lifecycle API: start, stop, restart, down
+
 ### 1.6.1
 - Added Settings UI for update defaults (prune toggles), auto-update scheduler (enable/cron), and API key management
 - Added per-stack auto-update toggle in the Compose view
