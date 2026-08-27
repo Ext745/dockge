@@ -238,6 +238,11 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 
 ## Version History
 
+### 1.8.1
+- Fixed dark mode styling for drift check panel — Bootstrap CSS custom properties were overriding inherited colors, making table text nearly invisible
+- Moved "Sync All" button to top of drift check panel (next to Scan button), disabled until scan completes
+- Fixed scan hanging forever when an agent is offline — added 30s per-agent timeout
+
 ### 1.8.0
 - Removed image update detection feature (skopeo-based registry digest comparison)
 - Removed auto-update scheduler (cron-based), per-stack auto-update toggle, and "Update All" button
