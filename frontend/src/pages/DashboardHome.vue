@@ -33,6 +33,73 @@
                     </div>
 
                     <button class="btn-normal btn mb-4" @click="convertDockerRun">{{ $t("Convert to Compose") }}</button>
+
+                    <!-- Version Sync -->
+                    <div class="shadow-box big-padding mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0">
+                                <font-awesome-icon icon="code-compare" class="me-1" />
+                                {{ $t("versionSync") }}
+                            </h4>
+                            <button class="btn btn-normal btn-sm" :disabled="versionScanLoading" @click="scanAllEndpoints">
+                                <font-awesome-icon v-if="versionScanLoading" icon="spinner" spin />
+                                <font-awesome-icon v-else icon="rotate" />
+                                {{ versionScanLoading ? $t("scanning") : $t("scanAll") }}
+                            </button>
+                        </div>
+
+                        <div v-if="!versionScanStarted" class="text-muted small">
+                            {{ $t("versionSyncDescription") }}
+                        </div>
+
+                        <div v-else-if="versionScanLoading && allMismatches.length === 0" class="text-muted">
+                            <font-awesome-icon icon="spinner" spin /> {{ $t("scanning") }}...
+                        </div>
+
+                        <div v-else-if="allMismatches.length === 0 && !versionScanLoading" class="text-muted">
+                            {{ $t("noVersionMismatches") }}
+                        </div>
+
+                        <div v-else>
+                            <div class="mb-2 text-muted small">{{ $t("versionMismatchesFound", [ allMismatches.length ]) }}</div>
+                            <table class="table table-sm mb-2">
+                                <thead>
+                                    <tr>
+                                        <th>{{ $t("stackName") }}</th>
+                                        <th>{{ $t("service") }}</th>
+                                        <th>{{ $t("composeImage") }}</th>
+                                        <th>{{ $t("runningImage") }}</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(m, i) in allMismatches" :key="i">
+                                        <td>
+                                            <router-link :to="'/compose/' + m.stackName + (m.endpoint ? '/' + m.endpoint : '')">{{ m.stackName }}</router-link>
+                                            <span v-if="m.endpoint" class="badge bg-secondary ms-1" style="font-size: 10px;">{{ getEndpointLabel(m.endpoint) }}</span>
+                                        </td>
+                                        <td>{{ m.service }}</td>
+                                        <td><code>{{ m.composeImage }}</code></td>
+                                        <td><code>{{ m.runningImage }}</code></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" :disabled="versionSyncLoading" @click="syncVersion(m)">
+                                                {{ $t("sync") }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button v-if="allMismatches.length > 1" class="btn btn-primary btn-sm" :disabled="versionSyncLoading" @click="syncAllMismatches">
+                                {{ $t("syncAll") }}
+                            </button>
+                        </div>
+
+                        <div v-if="scanErrors.length > 0" class="mt-2">
+                            <div v-for="(err, i) in scanErrors" :key="'err'+i" class="text-warning small">
+                                <font-awesome-icon icon="exclamation-circle" /> {{ err.endpoint }}: {{ err.msg }}
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Right -->
                 <div class="col-md-5">
@@ -146,7 +213,13 @@ export default {
                 password: "",
                 name: "",
                 updatedName: "",
-            }
+            },
+            versionScanStarted: false,
+            versionScanLoading: false,
+            versionSyncLoading: false,
+            allMismatches: [],
+            scanErrors: [],
+            pendingScans: 0,
         };
     },
 
@@ -242,6 +315,85 @@ export default {
                 }
             }
             return num;
+        },
+
+        getEndpointLabel(endpoint) {
+            if (!endpoint || endpoint === "") {
+                return this.$t("currentEndpoint");
+            }
+            const agent = this.$root.agentList[endpoint];
+            if (agent && agent.name) {
+                return agent.name;
+            }
+            return endpoint;
+        },
+
+        scanAllEndpoints() {
+            this.versionScanStarted = true;
+            this.versionScanLoading = true;
+            this.allMismatches = [];
+            this.scanErrors = [];
+
+            const endpoints = [ "" ];
+            for (const endpoint in this.$root.agentList) {
+                if (endpoint !== "" && this.$root.agentStatusList[endpoint] === "online") {
+                    endpoints.push(endpoint);
+                }
+            }
+
+            this.pendingScans = endpoints.length;
+
+            for (const endpoint of endpoints) {
+                this.$root.emitAgent(endpoint, "scanVersionSync", null, (res) => {
+                    this.pendingScans--;
+                    if (res.ok && res.data && res.data.mismatches) {
+                        for (const m of res.data.mismatches) {
+                            this.allMismatches.push({ ...m, endpoint });
+                        }
+                    } else if (!res.ok) {
+                        this.scanErrors.push({
+                            endpoint: this.getEndpointLabel(endpoint),
+                            msg: res.msg || "Scan failed",
+                        });
+                    }
+                    if (this.pendingScans <= 0) {
+                        this.versionScanLoading = false;
+                    }
+                });
+            }
+        },
+
+        syncVersion(mismatch) {
+            this.versionSyncLoading = true;
+            this.$root.emitAgent(mismatch.endpoint, "syncVersion", mismatch.stackName, mismatch.service, mismatch.runningImage, (res) => {
+                this.versionSyncLoading = false;
+                this.$root.toastRes(res);
+                if (res.ok) {
+                    this.allMismatches = this.allMismatches.filter(m =>
+                        !(m.stackName === mismatch.stackName && m.service === mismatch.service && m.endpoint === mismatch.endpoint)
+                    );
+                }
+            });
+        },
+
+        syncAllMismatches() {
+            this.versionSyncLoading = true;
+            let remaining = this.allMismatches.length;
+            const toSync = [ ...this.allMismatches ];
+            for (const mismatch of toSync) {
+                this.$root.emitAgent(mismatch.endpoint, "syncVersion", mismatch.stackName, mismatch.service, mismatch.runningImage, (res) => {
+                    remaining--;
+                    if (res.ok) {
+                        this.allMismatches = this.allMismatches.filter(m =>
+                            !(m.stackName === mismatch.stackName && m.service === mismatch.service && m.endpoint === mismatch.endpoint)
+                        );
+                    }
+                    if (remaining <= 0) {
+                        this.versionSyncLoading = false;
+                        this.$root.toastRes({ ok: true, msg: "allVersionsSynced", msgi18n: true });
+                    }
+                });
+            }
         },
 
         convertDockerRun() {

@@ -175,5 +175,8 @@
     "versionSynced": "Compose file synced to running version.",
     "allVersionsSynced": "All compose files synced to running versions.",
     "versionReverted": "Compose file reverted to previous version.",
-    "checkStarted": "Check started"
+    "checkStarted": "Check started",
+    "scanAll": "Scan All",
+    "versionSyncDescription": "Scan all stacks across all agents to detect image tag drift between compose files and running containers.",
+    "agentRequiresUpdate": "Agent requires v1.7.0+ for Version Sync"
 }

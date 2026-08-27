@@ -264,6 +264,8 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 - Image update checks return a notice instead of failing
 - Unsupported agents are listed in the response so you know which nodes need upgrading
 
+**Version Sync requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Version Sync to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
+
 ## Auto-Update Scheduler
 
 Per-stack auto-updates can be enabled through the API or Socket.IO interface. The scheduler runs on a configurable cron schedule (default: `0 3 * * *` — daily at 3 AM).
@@ -279,11 +281,13 @@ Features:
 
 ### 1.7.0
 - Added Compose Version Sync: detect and fix image tag drift between running containers and compose files
+- Global "Scan All" on the Home page scans every stack across all connected agents in one click
 - Scan for mismatches caused by external update tools (WUD, Watchtower) that update containers without touching compose YAML
 - One-click sync to update compose files to match running container images, preserving YAML comments
 - Sync history with revert capability
 - REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
 - Multi-host support via Dockge agent socket handlers
+- **Note:** All Dockge instances (master + agents) must run v1.7.0 for Version Sync to work
 
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
