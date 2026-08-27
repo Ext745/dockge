@@ -234,6 +234,11 @@ Features:
 
 ## Version History
 
+### 1.6.1
+- Added Settings UI for update defaults (prune toggles), auto-update scheduler (enable/cron), and API key management
+- Added per-stack auto-update toggle in the Compose view
+- Added `setApiKey` socket handler for setting API keys from the UI
+
 ### 1.6.0
 - Added REST API for external automation (CI/CD pipelines, scripts, monitoring tools)
 - Added scheduled auto-update system with per-stack opt-in and cron control
