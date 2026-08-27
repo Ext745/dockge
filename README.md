@@ -279,19 +279,20 @@ Features:
 
 ## Version History
 
+### 1.7.1
+- Added global "Scan All" Version Sync panel on the Home page — scans every stack across all connected agents in one click
+- Added Version Sync API endpoint documentation and examples to README
+- Documented agent compatibility requirements for Version Sync
+
 ### 1.7.0
 - Added Compose Version Sync: detect and fix image tag drift between running containers and compose files
-- Global "Scan All" on the Home page scans every stack across all connected agents in one click
+- Per-stack Version Sync button in the Compose view for scanning individual stacks
 - Scan for mismatches caused by external update tools (WUD, Watchtower) that update containers without touching compose YAML
 - One-click sync to update compose files to match running container images, preserving YAML comments
 - Sync history with revert capability
 - REST API endpoints at `/api/version-sync/` for scan, sync, sync-all, history, and revert
 - Multi-host support via Dockge agent socket handlers
 - **Note:** All Dockge instances (master + agents) must run v1.7.0+ for Version Sync to work
-
-### 1.7.1
-- Added global "Scan All" Version Sync panel on the Home page — scans every stack across all connected agents in one click
-- Added Version Sync API endpoints and agent compatibility docs to README
 
 ### 1.6.3
 - Fixed `GET /api/stacks` returning empty `services` — container state, status, health, and image info are now included per stack
