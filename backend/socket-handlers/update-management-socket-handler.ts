@@ -237,5 +237,25 @@ export class UpdateManagementSocketHandler extends SocketHandler {
                 callbackError(e, callback);
             }
         });
+
+        socket.on("setApiKey", async (apiKey: unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                if (typeof apiKey !== "string" || apiKey.length < 16) {
+                    throw new ValidationError("API key must be a string of at least 16 characters");
+                }
+
+                await Settings.set("apiKey", apiKey, "string");
+
+                callback({
+                    ok: true,
+                    msg: "Saved",
+                    msgi18n: true,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
     }
 }

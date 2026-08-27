@@ -150,5 +150,17 @@
     "rmRfCode": "rm -rf",
     "envVarCode": "DOCKGE_ENABLE_CONSOLE=true",
     "confirmLeaveStack": "You are currently editing a stack. Are you sure you want to leave?",
-    "updateAll": "Update All"
+    "updateAll": "Update All",
+    "autoUpdate": "Auto Update",
+    "Updates": "Updates",
+    "updateDefaults": "Update Defaults",
+    "pruneAfterUpdate": "Prune <u>dangling</u> images after update",
+    "pruneAllAfterUpdate": "Also remove <u>all</u> unused images",
+    "schedulerSettings": "Auto-Update Scheduler",
+    "enableAutoUpdateScheduler": "Enable auto-update scheduler",
+    "cronExpression": "Cron Expression",
+    "cronHelp": "Default: 0 3 * * * (daily at 3 AM). Uses standard cron syntax.",
+    "apiKey": "API Key",
+    "apiKeyHelp": "Set an API key to enable the REST API. The key is stored as a hash and cannot be retrieved after saving.",
+    "apiKeyPlaceholder": "Enter new API key"
 }
