@@ -86,8 +86,8 @@ export default {
                 globalEnv: {
                     title: this.$t("GlobalEnv"),
                 },
-                updates: {
-                    title: this.$t("Updates"),
+                api: {
+                    title: this.$t("API"),
                 },
                 about: {
                     title: this.$t("About"),

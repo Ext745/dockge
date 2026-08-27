@@ -16,7 +16,7 @@ import General from "./components/settings/General.vue";
 const Security = () => import("./components/settings/Security.vue");
 const GlobalEnv = () => import("./components/settings/GlobalEnv.vue");
 import About from "./components/settings/About.vue";
-const Updates = () => import("./components/settings/Updates.vue");
+const ApiSettings = () => import("./components/settings/Updates.vue");
 
 const routes = [
     {
@@ -85,8 +85,8 @@ const routes = [
                                 component: GlobalEnv,
                             },
                             {
-                                path: "updates",
-                                component: Updates,
+                                path: "api",
+                                component: ApiSettings,
                             },
                             {
                                 path: "about",

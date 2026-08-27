@@ -34,12 +34,12 @@
 
                     <button class="btn-normal btn mb-4" @click="convertDockerRun">{{ $t("Convert to Compose") }}</button>
 
-                    <!-- Version Sync -->
-                    <div class="shadow-box big-padding mb-4">
+                    <!-- Compose Drift Check -->
+                    <div class="shadow-box big-padding mb-4 drift-check-panel">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4 class="mb-0">
                                 <font-awesome-icon icon="code-compare" class="me-1" />
-                                {{ $t("versionSync") }}
+                                {{ $t("driftCheck") }}
                             </h4>
                             <button class="btn btn-normal btn-sm" :disabled="versionScanLoading" @click="scanAllEndpoints">
                                 <font-awesome-icon v-if="versionScanLoading" icon="spinner" spin />
@@ -49,7 +49,7 @@
                         </div>
 
                         <div v-if="!versionScanStarted" class="text-muted small">
-                            {{ $t("versionSyncDescription") }}
+                            {{ $t("driftCheckDescription") }}
                         </div>
 
                         <div v-else-if="versionScanLoading && allMismatches.length === 0" class="text-muted">
@@ -516,8 +516,32 @@ table {
     font-size: 15px;
 }
 
-.first-row .shadow-box {
+.drift-check-panel {
+    .dark & {
+        table {
+            color: $dark-font-color;
 
+            th {
+                color: $dark-font-color3;
+                border-color: $dark-border-color;
+            }
+
+            td {
+                border-color: $dark-border-color;
+            }
+
+            code {
+                background: rgba(255, 255, 255, 0.06);
+                padding: 2px 5px;
+                border-radius: 3px;
+            }
+        }
+
+        .badge.bg-secondary {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            color: $dark-font-color;
+        }
+    }
 }
 
 .remove-agent {

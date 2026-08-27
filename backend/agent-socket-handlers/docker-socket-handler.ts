@@ -178,28 +178,6 @@ export class DockerSocketHandler extends AgentSocketHandler {
             }
         });
 
-        // updateStack
-        agentSocket.on("updateStack", async (stackName : unknown, callback) => {
-            try {
-                checkLogin(socket);
-
-                if (typeof(stackName) !== "string") {
-                    throw new ValidationError("Stack name must be a string");
-                }
-
-                const stack = await Stack.getStack(server, stackName);
-                await stack.update(socket);
-                callbackResult({
-                    ok: true,
-                    msg: "Updated",
-                    msgi18n: true,
-                }, callback);
-                server.sendStackList();
-            } catch (e) {
-                callbackError(e, callback);
-            }
-        });
-
         // down stack
         agentSocket.on("downStack", async (stackName : unknown, callback) => {
             try {
