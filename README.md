@@ -238,6 +238,11 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 
 ## Version History
 
+### 1.8.2
+- Security patch: updated `ws` (8.17.1 → 8.21.3) — fixes memory disclosure and DoS vulnerabilities
+- Security patch: updated `yaml` (2.3.4 → 2.9.0) — fixes stack overflow via deeply nested YAML collections
+- Security patch: updated `express` (4.21.2 → 4.22.2) — fixes body-parser DoS, path-to-regexp ReDoS, and qs DoS vulnerabilities
+
 ### 1.8.1
 - Fixed dark mode styling for drift check panel — Bootstrap CSS custom properties were overriding inherited colors, making table text nearly invisible
 - Moved "Sync All" button to top of drift check panel (next to Scan button), disabled until scan completes
