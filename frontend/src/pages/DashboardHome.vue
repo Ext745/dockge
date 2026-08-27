@@ -41,11 +41,21 @@
                                 <font-awesome-icon icon="code-compare" class="me-1" />
                                 {{ $t("driftCheck") }}
                             </h4>
-                            <button class="btn btn-normal btn-sm" :disabled="versionScanLoading" @click="scanAllEndpoints">
-                                <font-awesome-icon v-if="versionScanLoading" icon="spinner" spin />
-                                <font-awesome-icon v-else icon="rotate" />
-                                {{ versionScanLoading ? $t("scanning") : $t("scanAll") }}
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button
+                                    v-if="allMismatches.length > 1"
+                                    class="btn btn-primary btn-sm"
+                                    :disabled="versionSyncLoading || versionScanLoading"
+                                    @click="syncAllMismatches"
+                                >
+                                    {{ $t("syncAll") }}
+                                </button>
+                                <button class="btn btn-normal btn-sm" :disabled="versionScanLoading" @click="scanAllEndpoints">
+                                    <font-awesome-icon v-if="versionScanLoading" icon="spinner" spin />
+                                    <font-awesome-icon v-else icon="rotate" />
+                                    {{ versionScanLoading ? $t("scanning") : $t("scanAll") }}
+                                </button>
+                            </div>
                         </div>
 
                         <div v-if="!versionScanStarted" class="text-muted small">
@@ -89,9 +99,6 @@
                                     </tr>
                                 </tbody>
                             </table>
-                            <button v-if="allMismatches.length > 1" class="btn btn-primary btn-sm" :disabled="versionSyncLoading" @click="syncAllMismatches">
-                                {{ $t("syncAll") }}
-                            </button>
                         </div>
 
                         <div v-if="scanErrors.length > 0" class="mt-2">
@@ -342,9 +349,30 @@ export default {
             }
 
             this.pendingScans = endpoints.length;
+            const completedScans = new Set();
+            const SCAN_TIMEOUT_MS = 30000;
 
             for (const endpoint of endpoints) {
+                const timer = setTimeout(() => {
+                    if (!completedScans.has(endpoint)) {
+                        completedScans.add(endpoint);
+                        this.pendingScans--;
+                        this.scanErrors.push({
+                            endpoint: this.getEndpointLabel(endpoint),
+                            msg: "Scan timed out",
+                        });
+                        if (this.pendingScans <= 0) {
+                            this.versionScanLoading = false;
+                        }
+                    }
+                }, SCAN_TIMEOUT_MS);
+
                 this.$root.emitAgent(endpoint, "scanVersionSync", null, (res) => {
+                    if (completedScans.has(endpoint)) {
+                        return;
+                    }
+                    completedScans.add(endpoint);
+                    clearTimeout(timer);
                     this.pendingScans--;
                     if (res.ok && res.data && res.data.mismatches) {
                         for (const m of res.data.mismatches) {
@@ -519,27 +547,46 @@ table {
 .drift-check-panel {
     .dark & {
         table {
+            --bs-table-color: #{$dark-font-color};
+            --bs-table-bg: transparent;
+            --bs-table-border-color: #{$dark-border-color};
             color: $dark-font-color;
 
             th {
-                color: $dark-font-color3;
+                color: #8b949e;
                 border-color: $dark-border-color;
+                font-weight: 600;
             }
 
             td {
                 border-color: $dark-border-color;
+                color: $dark-font-color;
+            }
+
+            a {
+                color: $primary;
+
+                &:hover {
+                    color: lighten($primary, 10%);
+                }
             }
 
             code {
-                background: rgba(255, 255, 255, 0.06);
-                padding: 2px 5px;
-                border-radius: 3px;
+                color: #e6edf3;
+                background: rgba(110, 118, 129, 0.2);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 12px;
             }
         }
 
         .badge.bg-secondary {
-            background-color: rgba(255, 255, 255, 0.15) !important;
-            color: $dark-font-color;
+            background-color: rgba(110, 118, 129, 0.3) !important;
+            color: #c9d1d9;
+        }
+
+        .text-muted {
+            color: #8b949e !important;
         }
     }
 }
