@@ -6,7 +6,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from .scanner import ImageMismatch, scan, update_compose_file
+from .scanner import DockerConnectionError, ImageMismatch, scan, update_compose_file
 
 console = Console()
 
@@ -45,11 +45,14 @@ def main(ctx, stacks_dir: Path, compose_filename: str, docker_url: str | None):
 @click.pass_context
 def report(ctx):
     """Show differences between compose files and running containers."""
-    result = scan(
-        ctx.obj["stacks_dir"],
-        ctx.obj["compose_filename"],
-        ctx.obj["docker_url"],
-    )
+    try:
+        result = scan(
+            ctx.obj["stacks_dir"],
+            ctx.obj["compose_filename"],
+            ctx.obj["docker_url"],
+        )
+    except DockerConnectionError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     if result.mismatches:
         table = Table(title="Version Mismatches")
@@ -110,11 +113,14 @@ def report(ctx):
 @click.pass_context
 def update(ctx, dry_run: bool, stack: tuple[str, ...], service: tuple[str, ...]):
     """Update compose files to match running container versions."""
-    result = scan(
-        ctx.obj["stacks_dir"],
-        ctx.obj["compose_filename"],
-        ctx.obj["docker_url"],
-    )
+    try:
+        result = scan(
+            ctx.obj["stacks_dir"],
+            ctx.obj["compose_filename"],
+            ctx.obj["docker_url"],
+        )
+    except DockerConnectionError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     if not result.mismatches:
         console.print("[green]Nothing to update — all compose files match.[/green]")
@@ -132,7 +138,7 @@ def update(ctx, dry_run: bool, stack: tuple[str, ...], service: tuple[str, ...])
                 f"[red]{m.compose_image}[/red] -> [green]{m.running_image}[/green]"
             )
         else:
-            update_compose_file(m.compose_file, m.service, m.running_image)
+            update_compose_file(m.compose_file, m.service, m.running_image, ctx.obj["stacks_dir"])
             console.print(
                 f"[green]Updated[/green] {m.stack}/{m.service}: "
                 f"[red]{m.compose_image}[/red] -> [green]{m.running_image}[/green]"

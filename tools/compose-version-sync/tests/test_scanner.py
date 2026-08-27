@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from compose_version_sync.scanner import (
+    _is_under,
     discover_compose_files,
     normalize_image_name,
     parse_compose_services,
@@ -161,6 +162,44 @@ class TestScan:
         result = scan(stacks)
         assert len(result.unmatched_services) == 1
         assert result.unmatched_services[0]["service"] == "web"
+
+
+class TestPathTraversal:
+    def test_is_under_valid(self, tmp_path):
+        child = tmp_path / "stacks" / "myapp"
+        child.mkdir(parents=True)
+        assert _is_under(child, tmp_path / "stacks")
+
+    def test_is_under_rejects_escape(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        stacks = tmp_path / "stacks"
+        stacks.mkdir()
+        assert not _is_under(outside, stacks)
+
+    def test_symlink_outside_stacks_rejected(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n")
+
+        stacks = tmp_path / "stacks"
+        stacks.mkdir()
+        (stacks / "legit").mkdir()
+        (stacks / "legit" / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n")
+        (stacks / "sneaky").symlink_to(outside)
+
+        result = discover_compose_files(stacks)
+        assert "legit" in result
+        assert "sneaky" not in result
+
+    def test_update_rejects_outside_stacks(self, tmp_path):
+        outside_file = tmp_path / "evil.yaml"
+        outside_file.write_text("services:\n  web:\n    image: nginx:1.0\n")
+        stacks = tmp_path / "stacks"
+        stacks.mkdir()
+
+        with pytest.raises(ValueError, match="Refusing to write outside"):
+            update_compose_file(outside_file, "web", "nginx:1.25", stacks)
 
 
 class TestUpdateComposeFile:

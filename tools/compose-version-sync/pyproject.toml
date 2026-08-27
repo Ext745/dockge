@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 dependencies = [
-    "docker>=7.0",
-    "pyyaml>=6.0",
-    "rich>=13.0",
-    "click>=8.0",
-    "ruamel.yaml>=0.18",
+    "docker==7.2.0",
+    "pyyaml==6.0.1",
+    "rich==15.0.0",
+    "click==8.5.0",
+    "ruamel.yaml==0.19.1",
 ]
 
 [project.scripts]

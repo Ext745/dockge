@@ -71,6 +71,15 @@ def get_running_containers(client: docker.DockerClient) -> dict[str, dict]:
     return containers
 
 
+def _is_under(path: Path, parent: Path) -> bool:
+    """Check that resolved path is under parent, preventing symlink traversal."""
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def discover_compose_files(
     stacks_dir: Path, compose_filename: str = "compose.yaml"
 ) -> dict[str, Path]:
@@ -78,6 +87,8 @@ def discover_compose_files(
     stacks = {}
     if not stacks_dir.is_dir():
         return stacks
+
+    resolved_root = stacks_dir.resolve()
 
     for entry in sorted(stacks_dir.iterdir()):
         if not entry.is_dir():
@@ -89,7 +100,7 @@ def discover_compose_files(
                 if alt_path.exists():
                     compose_path = alt_path
                     break
-        if compose_path.exists():
+        if compose_path.exists() and _is_under(compose_path, resolved_root):
             stacks[entry.name] = compose_path
     return stacks
 
@@ -130,13 +141,23 @@ def find_best_running_tag(
     return container_info.get("config_image")
 
 
+class DockerConnectionError(Exception):
+    pass
+
+
 def scan(
     stacks_dir: Path,
     compose_filename: str = "compose.yaml",
     docker_url: str | None = None,
 ) -> ScanResult:
     """Compare running container images against compose file definitions."""
-    client = docker.DockerClient(base_url=docker_url) if docker_url else docker.from_env()
+    try:
+        client = docker.DockerClient(base_url=docker_url) if docker_url else docker.from_env()
+        client.ping()
+    except docker.errors.DockerException as exc:
+        raise DockerConnectionError(
+            f"Cannot connect to Docker daemon: {exc}"
+        ) from exc
     running = get_running_containers(client)
     compose_files = discover_compose_files(stacks_dir, compose_filename)
 
@@ -196,8 +217,13 @@ def scan(
     return result
 
 
-def update_compose_file(compose_path: Path, service: str, new_image: str) -> None:
+def update_compose_file(
+    compose_path: Path, service: str, new_image: str, stacks_dir: Path | None = None
+) -> None:
     """Update a single service's image tag in a compose file, preserving formatting."""
+    if stacks_dir is not None and not _is_under(compose_path, stacks_dir):
+        raise ValueError(f"Refusing to write outside stacks directory: {compose_path}")
+
     yaml = YAML()
     yaml.preserve_quotes = True
 
