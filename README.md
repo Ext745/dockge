@@ -28,6 +28,7 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
 - ⏰ (1.6.0 🆕) Scheduled auto-updates with per-stack opt-in and cron control
 - 🔍 (1.6.0 🆕) Image update detection via remote registry digest comparison
+- 🔄 (1.7.0 🆕) Compose Version Sync — detect and fix image tag drift caused by external update tools (WUD, Watchtower)
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -183,6 +184,11 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 | `PUT` | `/api/scheduler` | Update scheduler settings (cron, prune options) |
 | `POST` | `/api/scheduler/trigger` | Trigger an immediate auto-update run |
 | `GET` | `/api/update-history` | Query update history with pagination |
+| `GET` | `/api/version-sync/scan` | Scan for image tag mismatches between compose files and running containers |
+| `POST` | `/api/version-sync/sync` | Sync a specific service's compose image to the running version |
+| `POST` | `/api/version-sync/sync-all` | Sync all mismatched services for a stack |
+| `GET` | `/api/version-sync/history` | Query version sync history with pagination |
+| `POST` | `/api/version-sync/revert` | Revert a previous version sync |
 
 ### Query Parameters
 
@@ -198,6 +204,27 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 - `?stackName=mystack` — filter by stack name
 - `?endpoint=hostname:port` — filter by agent endpoint
 
+**`GET /api/version-sync/scan`** accepts:
+- `?stackName=mystack` — scan a specific stack (omit to scan all)
+- `?endpoint=hostname:port` — target a specific remote agent
+
+**`POST /api/version-sync/sync`** accepts JSON body:
+- `stackName` (string, required) — stack to sync
+- `service` (string, required) — service name within the stack
+- `newImage` (string, required) — image tag to write into the compose file
+
+**`POST /api/version-sync/sync-all`** accepts JSON body:
+- `stackName` (string, required) — stack to sync all mismatches for
+
+**`GET /api/version-sync/history`** accepts:
+- `?page=1&limit=20` — pagination
+- `?stackName=mystack` — filter by stack name
+- `?service=myservice` — filter by service name
+
+**`POST /api/version-sync/revert`** accepts JSON body:
+- `stackName` (string, required) — stack containing the service to revert
+- `service` (string, required) — service to revert to its previous image
+
 ### Example
 
 ```bash
@@ -212,6 +239,22 @@ curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/stacks/myapp/che
 
 # Trigger scheduled auto-update immediately
 curl -X POST -H "X-API-Key: your-key" http://localhost:5001/api/scheduler/trigger
+
+# Scan all stacks for compose/running image mismatches
+curl -H "X-API-Key: your-key" http://localhost:5001/api/version-sync/scan
+
+# Scan a specific stack
+curl -H "X-API-Key: your-key" "http://localhost:5001/api/version-sync/scan?stackName=myapp"
+
+# Sync a service to its running image
+curl -X POST -H "X-API-Key: your-key" -H "Content-Type: application/json" \
+  -d '{"stackName":"myapp","service":"web","newImage":"nginx:1.27"}' \
+  http://localhost:5001/api/version-sync/sync
+
+# Revert a previous sync
+curl -X POST -H "X-API-Key: your-key" -H "Content-Type: application/json" \
+  -d '{"stackName":"myapp","service":"web"}' \
+  http://localhost:5001/api/version-sync/revert
 ```
 
 ### Agent Compatibility
