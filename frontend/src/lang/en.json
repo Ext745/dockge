@@ -161,6 +161,6 @@
     "cronExpression": "Cron Expression",
     "cronHelp": "Default: 0 3 * * * (daily at 3 AM). Uses standard cron syntax.",
     "apiKey": "API Key",
-    "apiKeyHelp": "Set an API key to enable the REST API. The key is stored as a hash and cannot be retrieved after saving.",
+    "apiKeyHelp": "Set an API key to enable the REST API. Keep a copy of your key — treat it like a password.",
     "apiKeyPlaceholder": "Enter new API key"
 }
