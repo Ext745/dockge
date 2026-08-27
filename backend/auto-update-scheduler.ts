@@ -182,9 +182,11 @@ export class AutoUpdateScheduler {
         let success = true;
         let errorMessage: string | null = null;
 
+        const supportsExtendedUpdate = this.server.serverAgentManager.supportsFeature(endpoint, "1.6.0");
+
         try {
             await new Promise<void>((resolve, reject) => {
-                this.server.serverAgentManager.emitToEndpoint(endpoint, "updateStack", stackName, pruneAfterUpdate, pruneAllAfterUpdate, (result: { ok?: boolean; msg?: string; selfUpdate?: boolean }) => {
+                const callback = (result: { ok?: boolean; msg?: string; selfUpdate?: boolean }) => {
                     if (result?.ok) {
                         if (result.selfUpdate) {
                             log.info("scheduler", `Agent ${endpoint} is self-updating stack ${stackName}, will restart`);
@@ -193,7 +195,14 @@ export class AutoUpdateScheduler {
                     } else {
                         reject(new Error(result?.msg ?? "Update failed"));
                     }
-                }).catch(reject);
+                };
+
+                if (supportsExtendedUpdate) {
+                    this.server.serverAgentManager.emitToEndpoint(endpoint, "updateStack", stackName, pruneAfterUpdate, pruneAllAfterUpdate, callback).catch(reject);
+                } else {
+                    log.info("scheduler", `Agent ${endpoint} is pre-1.6.0, using legacy updateStack (no prune control)`);
+                    this.server.serverAgentManager.emitToEndpoint(endpoint, "updateStack", stackName, callback).catch(reject);
+                }
             });
 
             log.info("scheduler", `Updated stack ${stackName} on endpoint ${endpoint}`);

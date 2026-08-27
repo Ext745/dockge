@@ -3,6 +3,7 @@ import { log } from "./log";
 import { Agent } from "./models/agent";
 import { LooseObject, sleep } from "../common/util-common";
 import dayjs, { Dayjs } from "dayjs";
+import semver from "semver";
 
 /**
  * Server-level AgentManager that maintains persistent socket.io connections
@@ -146,5 +147,17 @@ export class ServerAgentManager {
     isConnected(endpoint: string): boolean {
         const client = this.agentSocketList[endpoint];
         return !!(client && client.connected && this.agentLoggedInList[endpoint]);
+    }
+
+    supportsFeature(endpoint: string, minVersion: string): boolean {
+        const version = this.agentVersionList[endpoint];
+        if (!version) {
+            return false;
+        }
+        const parsed = semver.coerce(version);
+        if (!parsed) {
+            return false;
+        }
+        return semver.gte(parsed, minVersion);
     }
 }

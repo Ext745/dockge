@@ -84,6 +84,10 @@ async function resolveEndpoint(endpoint: string | undefined): Promise<string> {
     return endpoint;
 }
 
+function agentSupports(server: DockgeServer, endpoint: string): boolean {
+    return server.serverAgentManager.supportsFeature(endpoint, "1.6.0");
+}
+
 function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, ...args: unknown[]): Promise<Record<string, unknown>>;
 function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, timeoutMs: number, ...args: unknown[]): Promise<Record<string, unknown>>;
 function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, ...args: unknown[]): Promise<Record<string, unknown>> {
@@ -239,9 +243,14 @@ export class ApiRouter extends Router {
                 }
 
                 const agentList = await Agent.getAgentList();
+                const unsupportedAgents: string[] = [];
                 for (const url in agentList) {
                     const agent = agentList[url];
                     if (!url || agent.endpoint === "") {
+                        continue;
+                    }
+                    if (!agentSupports(server, agent.endpoint)) {
+                        unsupportedAgents.push(agent.endpoint);
                         continue;
                     }
                     try {
@@ -267,7 +276,12 @@ export class ApiRouter extends Router {
                     }
                 }
 
-                res.json({ ok: true, stacks });
+                const response: Record<string, unknown> = { ok: true, stacks };
+                if (unsupportedAgents.length > 0) {
+                    response.unsupportedAgents = unsupportedAgents;
+                    response.notice = "Some agents are running a version older than 1.6.0 and do not support API stack listing. Upgrade them to include their stacks.";
+                }
+                res.json(response);
             } catch (e) {
                 log.error("api", "GET /api/stacks error: " + e);
                 res.status(500).json({ ok: false, error: "Failed to list stacks" });
@@ -354,7 +368,12 @@ export class ApiRouter extends Router {
 
                 if (endpoint && endpoint !== "") {
                     try {
-                        const result = await emitToAgent(server, endpoint, "updateStack", 300000, req.params.name, pruneAfterUpdate, pruneAllAfterUpdate);
+                        let result: Record<string, unknown>;
+                        if (agentSupports(server, endpoint)) {
+                            result = await emitToAgent(server, endpoint, "updateStack", 300000, req.params.name, pruneAfterUpdate, pruneAllAfterUpdate);
+                        } else {
+                            result = await emitToAgent(server, endpoint, "updateStack", 300000, req.params.name);
+                        }
                         const durationMs = Date.now() - startTime;
                         const success = !!result.ok;
                         await UpdateHistoryService.recordUpdate(req.params.name, endpoint, "api", success, null, success ? null : (result.msg as string) || null, startedAt, new Date().toISOString(), durationMs);
@@ -607,6 +626,10 @@ export class ApiRouter extends Router {
                 }
 
                 if (endpoint && endpoint !== "") {
+                    if (!agentSupports(server, endpoint)) {
+                        res.json({ ok: true, imageUpdatesAvailable: false, endpoint, notice: "Agent is running a version older than 1.6.0 and does not support image update checks" });
+                        return;
+                    }
                     try {
                         const result = await emitToAgent(server, endpoint, "checkStackUpdates", req.params.name);
                         res.json({ ok: true, imageUpdatesAvailable: result.imageUpdatesAvailable ?? false, endpoint });
@@ -735,6 +758,34 @@ export class ApiRouter extends Router {
                 };
 
                 const updateAgentStacks = async (ep: string) => {
+                    const supported = agentSupports(server, ep);
+                    if (!supported) {
+                        log.info("api", `Agent ${ep} is pre-1.6.0, using auto-update settings to determine stacks`);
+                        const autoUpdateStacks = await StackSettingsService.getAllAutoUpdateStacks();
+                        const agentStacks = autoUpdateStacks.filter(s => s.endpoint === ep);
+                        if (agentStacks.length === 0) {
+                            results.push({ name: "(all)", endpoint: ep, success: false, error: "Agent is pre-1.6.0 and has no auto-update stacks configured" });
+                            return;
+                        }
+                        for (const { stackName } of agentStacks) {
+                            const startedAt = new Date().toISOString();
+                            const startTime = Date.now();
+                            try {
+                                const updateResult = await emitToAgent(server, ep, "updateStack", 300000, stackName);
+                                const durationMs = Date.now() - startTime;
+                                const success = !!updateResult.ok;
+                                await UpdateHistoryService.recordUpdate(stackName, ep, "api", success, null, success ? null : (updateResult.msg as string) || null, startedAt, new Date().toISOString(), durationMs);
+                                results.push({ name: stackName, endpoint: ep, success });
+                            } catch (e) {
+                                const durationMs = Date.now() - startTime;
+                                const errorMsg = e instanceof Error ? e.message : String(e);
+                                await UpdateHistoryService.recordUpdate(stackName, ep, "api", false, null, errorMsg, startedAt, new Date().toISOString(), durationMs);
+                                results.push({ name: stackName, endpoint: ep, success: false, error: errorMsg });
+                            }
+                        }
+                        return;
+                    }
+
                     try {
                         const listResult = await emitToAgent(server, ep, "getStackList");
                         if (!listResult.ok || !listResult.stackList) return;
@@ -864,7 +915,13 @@ export class ApiRouter extends Router {
                     const startTime = Date.now();
                     try {
                         if (endpoint !== "") {
-                            const updateResult = await emitToAgent(server, endpoint, "updateStack", 300000, stackName, pruneAfterUpdate, pruneAllAfterUpdate);
+                            let updateResult;
+                            if (agentSupports(server, endpoint)) {
+                                updateResult = await emitToAgent(server, endpoint, "updateStack", 300000, stackName, pruneAfterUpdate, pruneAllAfterUpdate);
+                            } else {
+                                log.info("api", `Agent ${endpoint} is pre-1.6.0, using legacy updateStack for ${stackName}`);
+                                updateResult = await emitToAgent(server, endpoint, "updateStack", 300000, stackName);
+                            }
                             const durationMs = Date.now() - startTime;
                             const success = !!updateResult.ok;
                             await UpdateHistoryService.recordUpdate(stackName, endpoint, "api-trigger", success, null, success ? null : (updateResult.msg as string) || null, startedAt, new Date().toISOString(), durationMs);
