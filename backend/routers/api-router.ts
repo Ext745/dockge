@@ -11,6 +11,7 @@ import crypto from "crypto";
 import { VersionSyncHistoryService } from "../version-sync-history-service";
 import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
 import { Settings } from "../settings";
+import { encryptCredential } from "../services/agent-crypto";
 
 const STATUS_NAMES: Record<number, string> = {
     [UNKNOWN]: "unknown",
@@ -180,7 +181,7 @@ export class ApiRouter extends Router {
                 let bean = R.dispense("agent") as Agent;
                 bean.url = url;
                 bean.username = username || "";
-                bean.password = password || "";
+                bean.password = encryptCredential(password || "");
                 bean.name = name || "";
                 await R.store(bean);
 

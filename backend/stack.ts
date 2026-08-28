@@ -353,6 +353,17 @@ export class Stack {
         if (await fileExists(overridePath) || this.composeOverrideYAML.trim() !== "") {
             await fsAsync.writeFile(overridePath, this.composeOverrideYAML);
         }
+
+        // Write .env file only when the user explicitly provided env content
+        if (this._composeENV !== undefined) {
+            const envPath = path.join(dir, ".env");
+            await fsAsync.writeFile(envPath, this._composeENV);
+            if (process.env.PUID && process.env.PGID) {
+                const uid = Number(process.env.PUID);
+                const gid = Number(process.env.PGID);
+                fs.chownSync(envPath, uid, gid);
+            }
+        }
     }
 
     async deploy(socket : DockgeSocket) : Promise<number> {

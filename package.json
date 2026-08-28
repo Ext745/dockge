@@ -34,6 +34,7 @@
         "bcryptjs": "~2.4.3",
         "check-password-strength": "~2.0.10",
         "command-exists": "~1.2.9",
+        "notp": "~2.0.3",
         "compare-versions": "~6.1.1",
         "composerize": "~1.7.1",
         "croner": "~8.1.2",
