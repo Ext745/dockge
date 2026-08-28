@@ -1,6 +1,10 @@
 {
     "name": "dockge",
-    "version": "1.8.2",
+    "version": "1.9.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/darthrater78/dockge.git"
+    },
     "type": "module",
     "engines": {
         "node": ">= 22.14.0"

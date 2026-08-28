@@ -25,6 +25,7 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 - 🔐 (1.5.1 🆕) Optional Cloudflare Turnstile CAPTCHA on login
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
 - 🔄 (1.7.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files
+- 🔑 (1.9.0 🆕) Two-Factor Authentication (TOTP) — protect your account with app-based 2FA
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -236,7 +237,30 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 
 **Compose Drift Check requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Compose Drift Check to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
 
+**Agent credential encryption (v1.9.0):** Agent passwords are now encrypted at rest using AES-256-GCM. A one-time migration encrypts existing plaintext passwords on first startup. Remote agents do not need updating — the wire protocol is unchanged. However, rolling back the primary to a pre-1.9.0 version after migration will break agent authentication; back up the SQLite database before upgrading.
+
 ## Version History
+
+### 1.9.0
+
+**Added**
+- Two-Factor Authentication (TOTP) — full backend implementation for setup, verification, enable/disable flows that were previously non-functional
+- `.env` file persistence — stack save now writes the `.env` file when the user provides environment content
+- Agent credential encryption — passwords stored at rest are encrypted with AES-256-GCM, keyed from the JWT secret
+- One-time database migration to encrypt existing plaintext agent passwords
+
+**Fixed**
+- `callbackError` now correctly distinguishes `ValidationError` from generic `Error` (subclass check order was inverted)
+- Removed stray `console.log` in `getComposeOptions`
+- SSL passphrase no longer logged in debug config output
+
+**Security**
+- Interactive terminal shell restricted to allowlist (`bash`, `sh`, `ash`, `zsh`)
+- Socket handler `updateAgent` params validated as `unknown` before use
+- Removed dead `needRehashPassword` function
+
+**Known issue**
+- `UPTIME_KUMA_WS_ORIGIN_CHECK=bypass` disables WebSocket origin validation entirely — if you use this env var for reverse proxy compatibility, be aware it removes CSRF protection. A safer allowlist-based alternative is planned for a future release.
 
 ### 1.8.2
 
