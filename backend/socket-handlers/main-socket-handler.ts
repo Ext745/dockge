@@ -5,7 +5,7 @@ import { DockgeServer } from "../dockge-server";
 import { log } from "../log";
 import { R } from "redbean-node";
 import { loginRateLimiter, twoFaRateLimiter } from "../rate-limiter";
-import { generatePasswordHash, needRehashPassword, shake256, SHAKE256_LENGTH, verifyPassword } from "../password-hash";
+import { generatePasswordHash, shake256, SHAKE256_LENGTH, verifyPassword } from "../password-hash";
 import { User } from "../models/user";
 import {
     callbackError,
@@ -20,6 +20,7 @@ import jwt from "jsonwebtoken";
 import { Settings } from "../settings";
 import fs, { promises as fsAsync } from "fs";
 import path from "path";
+import { generateTwoFASecret, verifyTwoFAToken, twoFAVerifyOptions } from "../two-fa";
 
 async function verifyTurnstileToken(token: string, clientIP: string, secretKey: string): Promise<boolean> {
     if (!token) {
@@ -234,8 +235,7 @@ export class MainSocketHandler extends SocketHandler {
                 }
 
                 if (data.token) {
-                    // @ts-ignore — notp is not installed; 2FA is non-functional (upstream issue)
-                    const verify = notp.totp.verify(data.token, user.twofa_secret, twoFAVerifyOptions);
+                    const verify = verifyTwoFAToken(data.token, user.twofa_secret);
 
                     if (user.twofa_last_token !== data.token && verify) {
                         server.afterLogin(socket, user);
@@ -389,6 +389,111 @@ export class MainSocketHandler extends SocketHandler {
             }
         });
 
+        // 2FA status
+        socket.on("twoFAStatus", async (callback) => {
+            try {
+                checkLogin(socket);
+
+                const user = await R.findOne("user", " id = ? ", [socket.userID]) as User;
+
+                callback({
+                    ok: true,
+                    status: user.twofa_status === 1,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Prepare 2FA — generate secret and return URI for QR code
+        socket.on("prepare2FA", async (currentPassword : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await doubleCheckPassword(socket, currentPassword as string);
+
+                const user = await R.findOne("user", " id = ? ", [socket.userID]) as User;
+                const { secret, uri } = generateTwoFASecret(user.username);
+
+                await R.exec("UPDATE `user` SET twofa_secret = ? WHERE id = ? ", [
+                    secret,
+                    socket.userID,
+                ]);
+
+                callback({
+                    ok: true,
+                    uri,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Save (enable) 2FA
+        socket.on("save2FA", async (currentPassword : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await doubleCheckPassword(socket, currentPassword as string);
+
+                await R.exec("UPDATE `user` SET twofa_status = 1 WHERE id = ? ", [
+                    socket.userID,
+                ]);
+
+                callback({
+                    ok: true,
+                    msg: "2FA Enabled",
+                    msgi18n: true,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Disable 2FA
+        socket.on("disable2FA", async (currentPassword : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await doubleCheckPassword(socket, currentPassword as string);
+
+                await R.exec("UPDATE `user` SET twofa_status = 0, twofa_secret = '', twofa_last_token = '' WHERE id = ? ", [
+                    socket.userID,
+                ]);
+
+                callback({
+                    ok: true,
+                    msg: "2FA Disabled",
+                    msgi18n: true,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Verify a TOTP token (used during 2FA setup to confirm the user's app works)
+        socket.on("verifyToken", async (token : unknown, currentPassword : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                await doubleCheckPassword(socket, currentPassword as string);
+
+                if (typeof token !== "string") {
+                    throw new ValidationError("Token must be a string");
+                }
+
+                if (!await twoFaRateLimiter.pass(callback)) {
+                    return;
+                }
+
+                const user = await R.findOne("user", " id = ? ", [socket.userID]) as User;
+                const valid = verifyTwoFAToken(token, user.twofa_secret);
+
+                callback({
+                    ok: true,
+                    valid,
+                });
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
         // composerize
         socket.on("composerize", async (dockerRunCommand : unknown, callback) => {
             try {
@@ -424,13 +529,6 @@ export class MainSocketHandler extends SocketHandler {
         ]) as User;
 
         if (user && verifyPassword(password, user.password)) {
-            // Upgrade the hash to bcrypt
-            if (needRehashPassword(user.password)) {
-                await R.exec("UPDATE `user` SET password = ? WHERE id = ? ", [
-                    generatePasswordHash(password),
-                    user.id,
-                ]);
-            }
             return user;
         }
 

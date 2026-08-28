@@ -100,6 +100,11 @@ export class TerminalSocketHandler extends AgentSocketHandler {
                     throw new ValidationError("Shell must be a string.");
                 }
 
+                const allowedShells = ["/bin/bash", "/bin/sh", "/bin/ash", "/bin/zsh", "bash", "sh", "ash", "zsh"];
+                if (!allowedShells.includes(shell)) {
+                    throw new ValidationError("Shell is not allowed.");
+                }
+
                 log.debug("interactiveTerminal", "Stack name: " + stackName);
                 log.debug("interactiveTerminal", "Service name: " + serviceName);
 

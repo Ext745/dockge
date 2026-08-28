@@ -4,6 +4,7 @@ import { Agent } from "./models/agent";
 import { LooseObject, sleep } from "../common/util-common";
 import dayjs, { Dayjs } from "dayjs";
 import semver from "semver";
+import { decryptCredential } from "./services/agent-crypto";
 
 /**
  * Server-level AgentManager that maintains persistent socket.io connections
@@ -97,7 +98,7 @@ export class ServerAgentManager {
 
         for (let url of urls) {
             let agent = list[url];
-            this.connect(agent.url, agent.username, agent.password);
+            this.connect(agent.url, agent.username, decryptCredential(agent.password));
         }
     }
 

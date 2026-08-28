@@ -21,15 +21,6 @@ export function verifyPassword(password : string, hash : string) {
     return bcrypt.compareSync(password, hash);
 }
 
-/**
- * Does the hash need to be rehashed?
- * @param {string} hash Hash to check
- * @returns {boolean} Needs to be rehashed?
- */
-export function needRehashPassword(hash : string) : boolean {
-    return false;
-}
-
 export const SHAKE256_LENGTH = 16;
 
 /**

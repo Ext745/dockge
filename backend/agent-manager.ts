@@ -6,6 +6,7 @@ import { isDev, LooseObject, sleep } from "../common/util-common";
 import semver from "semver";
 import { R } from "redbean-node";
 import dayjs, { Dayjs } from "dayjs";
+import { encryptCredential, decryptCredential } from "./services/agent-crypto";
 
 /**
  * Dockge Instance Manager
@@ -82,7 +83,7 @@ export class AgentManager {
         let bean = R.dispense("agent") as Agent;
         bean.url = url;
         bean.username = username;
-        bean.password = password;
+        bean.password = encryptCredential(password);
         bean.name = name;
         await R.store(bean);
         return bean;
@@ -234,7 +235,7 @@ export class AgentManager {
 
         for (let endpoint in list) {
             let agent = list[endpoint];
-            this.connect(agent.url, agent.username, agent.password);
+            this.connect(agent.url, agent.username, decryptCredential(agent.password));
         }
     }
 

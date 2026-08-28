@@ -40,6 +40,7 @@ import { UpdateManagementSocketHandler } from "./socket-handlers/update-manageme
 import { Terminal } from "./terminal";
 import { ApiRouter } from "./routers/api-router";
 import { ServerAgentManager } from "./server-agent-manager";
+import { setAgentEncryptionKey } from "./services/agent-crypto";
 
 export class DockgeServer {
     app : Express;
@@ -164,7 +165,8 @@ export class DockgeServer {
         this.config.enableConsole = args.enableConsole || process.env.DOCKGE_ENABLE_CONSOLE === "true" || false;
         this.stacksDir = this.config.stacksDir;
 
-        log.debug("server", this.config);
+        const safeConfig = { ...this.config, sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined };
+        log.debug("server", safeConfig);
 
         this.packageJSON = packageJSON as PackageJson;
 
@@ -383,6 +385,7 @@ export class DockgeServer {
         }
 
         this.jwtSecret = jwtSecretBean.value;
+        setAgentEncryptionKey(this.jwtSecret);
 
         const userCount = (await R.knex("user").count("id as count").first()).count;
 
