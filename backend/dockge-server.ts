@@ -165,7 +165,8 @@ export class DockgeServer {
         this.config.enableConsole = args.enableConsole || process.env.DOCKGE_ENABLE_CONSOLE === "true" || false;
         this.stacksDir = this.config.stacksDir;
 
-        log.debug("server", this.config);
+        const safeConfig = { ...this.config, sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined };
+        log.debug("server", safeConfig);
 
         this.packageJSON = packageJSON as PackageJson;
 

@@ -5,7 +5,7 @@ import { DockgeServer } from "../dockge-server";
 import { log } from "../log";
 import { R } from "redbean-node";
 import { loginRateLimiter, twoFaRateLimiter } from "../rate-limiter";
-import { generatePasswordHash, needRehashPassword, shake256, SHAKE256_LENGTH, verifyPassword } from "../password-hash";
+import { generatePasswordHash, shake256, SHAKE256_LENGTH, verifyPassword } from "../password-hash";
 import { User } from "../models/user";
 import {
     callbackError,
@@ -529,13 +529,6 @@ export class MainSocketHandler extends SocketHandler {
         ]) as User;
 
         if (user && verifyPassword(password, user.password)) {
-            // Upgrade the hash to bcrypt
-            if (needRehashPassword(user.password)) {
-                await R.exec("UPDATE `user` SET password = ? WHERE id = ? ", [
-                    generatePasswordHash(password),
-                    user.id,
-                ]);
-            }
             return user;
         }
 

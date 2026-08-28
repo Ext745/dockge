@@ -68,10 +68,17 @@ export class ManageAgentSocketHandler extends SocketHandler {
         });
 
         // updateAgent
-        socket.on("updateAgent", async (name : string, updatedName : string, callback : unknown) => {
+        socket.on("updateAgent", async (name : unknown, updatedName : unknown, callback : unknown) => {
             try {
                 log.debug("manage-agent-socket-handler", "updateAgent");
                 checkLogin(socket);
+
+                if (typeof(name) !== "string") {
+                    throw new Error("Name must be a string");
+                }
+                if (typeof(updatedName) !== "string") {
+                    throw new Error("Updated name must be a string");
+                }
 
                 let manager = socket.instanceManager;
                 await manager.update(name, updatedName);
