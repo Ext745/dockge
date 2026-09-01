@@ -20,12 +20,17 @@ Two `dockge-test:agent-maint` containers (build via `docker build -f docker/Dock
   - Verified: `tsc --noEmit` clean, `npm run lint` shows no new errors (only pre-existing ones, already tracked below).
   - **Live-tested 2026-09-01**: deployed two real stacks via `deployStack` against the master's isolated dind daemon - one service running normally plus a second `busybox` service that exits immediately (`sh -c 'exit 1'`). With `dockge.status.ignore=true` on the crashing service, the dashboard's pushed `stackList` status was `RUNNING`; with the label removed (control), the identical scenario correctly showed `RUNNING_AND_EXITED`. Confirms the label is what's actually deciding the badge, not a side effect.
 
+- **Fullscreen toggle on the primary compose.yaml editor**
+  - `frontend/src/pages/Compose.vue`: copied the exact `expand-button` + `BModal id="..." size="fullscreen" hide-footer` pattern already used for `compose-override-editor-modal` onto the primary editor (`compose-editor-modal`), with its own CodeMirror instance (`ref="composeEditorModal"`, distinct from the override modal's `ref="editorModal"` to avoid a duplicate-ref collision) bound to the same `stack.composeYAML` via `v-model`, so edits made in either view stay in sync automatically - no new state needed.
+  - Verified: `tsc --noEmit` clean; `eslint` on the touched file shows only the same 2 pre-existing `array-bracket-spacing` warnings that exist on `master` (confirmed via `git stash`), nothing new.
+  - **Live-tested 2026-09-01** with a real Chromium browser (Playwright, driving the running master instance from earlier): logged in, opened a deployed stack's Compose page in edit mode, confirmed exactly one `.expand-button` (no override editor present for this stack), clicked it, confirmed the modal opens with `modal-fullscreen` class and the correct title, confirmed its editor shows the same YAML content as the inline editor, typed a marker line into the fullscreen editor, closed the modal, and confirmed the marker appeared in the inline editor too (proving the shared `v-model` binding works both ways) - with zero browser console errors throughout.
+
 ## Deferred by choice
 - **~99 pre-existing lint errors** (94 `object-property-newline` + 5 `curly`, concentrated in `api-router.ts`, `compose-version-sync.ts`, `docker-socket-handler.ts`, `two-fa.ts`, `version-sync-history-service.ts`). Purely cosmetic, 100% auto-fixable, zero semantic risk. Do via `eslint --fix` + diff review as its own isolated commit once the live test is done.
 
 ## Confirmed real gaps — still to port
-1. **Fullscreen toggle on the *primary* compose.yaml editor** — darthrater78 only has fullscreen for the compose **override** editor modal (`compose-override-editor-modal`, `size="fullscreen"`). Small, UI-only: copy the same modal pattern onto the main editor. Source reference: hamphh's `Compose.vue`.
-2. **Advanced category filter dropdown** on the stack list — darthrater78 already has basic text search plus a *disabled placeholder* for this (`<div v-if="false" class="header-filter">` with a commented-out `<StackListFilter>`), so someone already started it. Needs: the `StackFilter` class (category/status-based filtering) in `common/util-common.ts` and the `BDropdown` UI in `StackList.vue`. Medium effort — source reference: hamphh's `StackList.vue` + `common/util-common.ts` (`StackFilter`, `StackStatusInfo`).
+1. **Advanced category filter dropdown** on the stack list — darthrater78 already has basic text search plus a *disabled placeholder* for this (`<div v-if="false" class="header-filter">` with a commented-out `<StackListFilter>`), so someone already started it. Needs: the `StackFilter` class (category/status-based filtering) in `common/util-common.ts` and the `BDropdown` UI in `StackList.vue`. Medium effort — source reference: hamphh's `StackList.vue` + `common/util-common.ts` (`StackFilter`, `StackStatusInfo`).
+   - **Up next.**
 
 ## Confirmed NOT needed (already present or superseded in darthrater78)
 - Basic stack list search/filter — present
@@ -42,7 +47,7 @@ Two `dockge-test:agent-maint` containers (build via `docker build -f docker/Dock
 - **"Delete stack" button moved to submenu** — cosmetic placement change in hamphh; not checked whether darthrater78 already does this or where its delete button currently lives.
 
 ## Suggested order (live testing is done, green light given)
-1. Fullscreen toggle on primary editor (small, UI-only) — **up next**
+1. ~~Fullscreen toggle on primary editor~~ — done, see above
 2. Resolve the four "unverified" items above with quick checks (likely small or non-issues)
-3. Advanced category filter dropdown (medium — the real remaining chunk of work)
+3. Advanced category filter dropdown (medium — the real remaining chunk of work) — **up next**
 4. Lint cleanup (`eslint --fix`, isolated commit)

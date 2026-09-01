@@ -271,6 +271,9 @@
 
                     <!-- YAML editor -->
                     <div class="shadow-box mb-3 editor-box" :class="{'edit-mode' : isEditMode}">
+                        <button v-if="isEditMode" v-b-modal.compose-editor-modal class="expand-button">
+                            <font-awesome-icon icon="expand" />
+                        </button>
                         <code-mirror
                             ref="editor"
                             v-model="stack.composeYAML"
@@ -287,6 +290,30 @@
                     <div v-if="isEditMode" class="mb-3">
                         {{ yamlError }}
                     </div>
+
+                    <!-- Primary compose.yaml fullscreen editor (CodeMirror) -->
+                    <BModal
+                        id="compose-editor-modal" :title="stack.composeFileName"
+                        scrollable size="fullscreen" hide-footer
+                    >
+                        <div class="shadow-box mb-3 editor-box" :class="{'edit-mode' : isEditMode}">
+                            <code-mirror
+                                ref="composeEditorModal"
+                                v-model="stack.composeYAML"
+                                :extensions="extensions"
+                                minimal
+                                wrap="true"
+                                dark="true"
+                                tab="true"
+                                :disabled="!isEditMode"
+                                :hasFocus="editorFocus"
+                                @change="yamlCodeChange"
+                            />
+                        </div>
+                        <div v-if="isEditMode" class="mb-3">
+                            {{ yamlError }}
+                        </div>
+                    </BModal>
 
                     <!-- ENV editor -->
                     <div v-if="isEditMode">
