@@ -44,6 +44,7 @@
     "volume": "Volume | Volumes",
     "network": "Network | Networks",
     "dependsOn": "Container Dependency | Container Dependencies",
+    "ignoreStatus": "Ignore status",
     "addListItem": "Add {0}",
     "deleteContainer": "Delete",
     "addContainer": "Add Container",

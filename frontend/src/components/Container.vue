@@ -184,6 +184,22 @@
                     </label>
                     <ArrayInput name="depends_on" :display-name="$t('dependsOn')" :placeholder="$t(`containerName`)" />
                 </div>
+
+                <!-- Dockge specific settings -->
+                <div class="mb-4">
+                    <h5>Dockge</h5>
+                    <div class="form-check form-switch">
+                        <input
+                            id="ignoreStatus"
+                            v-model="ignoreStatus"
+                            class="form-check-input"
+                            type="checkbox"
+                        />
+                        <label class="form-check-label" for="ignoreStatus">
+                            {{ $t("ignoreStatus") }}
+                        </label>
+                    </div>
+                </div>
             </div>
         </transition>
     </div>
@@ -193,6 +209,7 @@
 import { defineComponent } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { parseDockerPort } from "../../../common/util-common";
+import { LABEL_STATUS_IGNORE } from "../../../common/compose-labels";
 import DockerStat from "./DockerStat.vue";
 
 export default defineComponent({
@@ -350,6 +367,33 @@ export default defineComponent({
                 return "N/A";
             }
             return this.serviceStatus[0].status;
+        },
+
+        ignoreStatus: {
+            get() {
+                const labels = this.service.labels;
+                return Array.isArray(labels) && labels.includes(`${LABEL_STATUS_IGNORE}=true`);
+            },
+            set(checked) {
+                if (!Array.isArray(this.service.labels)) {
+                    this.service.labels = [];
+                }
+                const labels = this.service.labels;
+                const index = labels.findIndex((label) => label.startsWith(`${LABEL_STATUS_IGNORE}=`));
+
+                if (checked) {
+                    if (index === -1) {
+                        labels.push(`${LABEL_STATUS_IGNORE}=true`);
+                    } else {
+                        labels[index] = `${LABEL_STATUS_IGNORE}=true`;
+                    }
+                } else if (index !== -1) {
+                    labels.splice(index, 1);
+                    if (labels.length === 0) {
+                        delete this.service.labels;
+                    }
+                }
+            }
         }
     },
     mounted() {

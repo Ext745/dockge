@@ -21,6 +21,7 @@ import { InteractiveTerminal, Terminal } from "./terminal";
 import childProcessAsync from "promisify-child-process";
 import { Settings } from "./settings";
 import { ServiceData } from "../common/types";
+import { LABEL_STATUS_IGNORE } from "../common/compose-labels";
 
 export class Stack {
 
@@ -177,6 +178,8 @@ export class Stack {
             let runningCount = 0;
             let exitedCount = 0;
             let createdCount = 0;
+            let ignoredRunningCount = 0;
+            let ignoredExitedCount = 0;
             let unhealthy = false;
             this._recreateNecessary = false;
 
@@ -197,10 +200,25 @@ export class Stack {
                         }
                     );
 
+                    // Labels is a comma-separated "key=value,key2=value2" string of the
+                    // container's actual runtime labels, which includes any custom
+                    // `labels:` set on the compose service.
+                    const ignoreStatus = String(serviceInfo.Labels ?? "")
+                        .split(",")
+                        .includes(`${LABEL_STATUS_IGNORE}=true`);
+
                     if (serviceInfo.State === "running") {
-                        runningCount++;
+                        if (ignoreStatus) {
+                            ignoredRunningCount++;
+                        } else {
+                            runningCount++;
+                        }
                     } else if (serviceInfo.State === "exited") {
-                        exitedCount++;
+                        if (ignoreStatus) {
+                            ignoredExitedCount++;
+                        } else {
+                            exitedCount++;
+                        }
                     } else if (serviceInfo.State === "created") {
                         createdCount++;
                     }
@@ -219,6 +237,10 @@ export class Stack {
                 this._status = EXITED;
             } else if (createdCount > 0) {
                 this._status = CREATED_STACK;
+            } else if (ignoredRunningCount > 0) {
+                this._status = RUNNING;
+            } else if (ignoredExitedCount > 0) {
+                this._status = EXITED;
             } else {
                 this._status = UNKNOWN;
             }
@@ -484,8 +506,16 @@ export class Stack {
                 stackList.set(composeStack.Name, stack);
             }
 
-            stack._status = this.statusConvert(composeStack.Status);
             stack._configFilePath = composeStack.ConfigFiles;
+
+            if (composeStack.Status.startsWith("running")) {
+                // No exited containers at all, nothing more to check.
+                stack._status = RUNNING;
+            } else {
+                // Fall back to the slower, per-service check so that services labelled
+                // dockge.status.ignore=true don't drag the stack's status down (see updateData()).
+                await stack.updateData();
+            }
         }
 
         return stackList;
