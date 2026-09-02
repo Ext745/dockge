@@ -53,7 +53,8 @@ async function apiKeyAuth(req: Request, res: Response, next: NextFunction): Prom
 function validateStackName(req: Request, res: Response, next: NextFunction): void {
     const name = req.params.name;
     if (!name || !VALID_STACK_NAME.test(name)) {
-        res.status(400).json({ ok: false, error: "Invalid stack name" });
+        res.status(400).json({ ok: false,
+            error: "Invalid stack name" });
         return;
     }
     next();
@@ -117,7 +118,8 @@ export class ApiRouter extends Router {
         router.use(express.json());
 
         router.get("/api/health", (_req: Request, res: Response) => {
-            res.json({ status: "ok", version: server.packageJSON.version });
+            res.json({ status: "ok",
+                version: server.packageJSON.version });
         });
 
         router.use("/api", apiKeyAuth);
@@ -159,10 +161,12 @@ export class ApiRouter extends Router {
                     });
                 }
 
-                res.json({ ok: true, agents });
+                res.json({ ok: true,
+                    agents });
             } catch (e) {
                 log.error("api", "GET /api/agents error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to list agents" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to list agents" });
             }
         });
 
@@ -171,7 +175,8 @@ export class ApiRouter extends Router {
             try {
                 const { url, username, password, name } = req.body;
                 if (!url || typeof url !== "string") {
-                    res.status(400).json({ ok: false, error: "url is required" });
+                    res.status(400).json({ ok: false,
+                        error: "url is required" });
                     return;
                 }
 
@@ -185,11 +190,13 @@ export class ApiRouter extends Router {
                 bean.name = name || "";
                 await R.store(bean);
 
-                res.json({ ok: true, message: "Agent added successfully" });
+                res.json({ ok: true,
+                    message: "Agent added successfully" });
             } catch (e) {
                 log.error("api", "POST /api/agents error: " + e);
                 const msg = e instanceof Error ? e.message : "Failed to add agent";
-                res.status(500).json({ ok: false, error: msg });
+                res.status(500).json({ ok: false,
+                    error: msg });
             }
         });
 
@@ -199,11 +206,17 @@ export class ApiRouter extends Router {
                 const agentList = await Agent.getAgentList();
                 const agents: { endpoint: string; name: string; url: string; connected: boolean; version: string | null }[] = [];
 
-                agents.push({ endpoint: "", name: "master", url: "", connected: true, version: server.packageJSON.version ?? null });
+                agents.push({ endpoint: "",
+                    name: "master",
+                    url: "",
+                    connected: true,
+                    version: server.packageJSON.version ?? null });
 
                 for (const url in agentList) {
                     const agent = agentList[url];
-                    if (!url || agent.endpoint === "") continue;
+                    if (!url || agent.endpoint === "") {
+                        continue;
+                    }
 
                     agents.push({
                         endpoint: agent.endpoint,
@@ -214,10 +227,12 @@ export class ApiRouter extends Router {
                     });
                 }
 
-                res.json({ ok: true, agents });
+                res.json({ ok: true,
+                    agents });
             } catch (e) {
                 log.error("api", "GET /api/agents/status error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to check agent status" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to check agent status" });
             }
         });
 
@@ -229,7 +244,7 @@ export class ApiRouter extends Router {
                 const stacks: StackInfo[] = [];
 
                 const stackList = await Stack.getStackList(server, true);
-                for (const [name, stack] of stackList) {
+                for (const [ name, stack ] of stackList) {
                     await stack.updateData();
                     stacks.push({
                         name,
@@ -273,7 +288,8 @@ export class ApiRouter extends Router {
                     }
                 }
 
-                const response: Record<string, unknown> = { ok: true, stacks };
+                const response: Record<string, unknown> = { ok: true,
+                    stacks };
                 if (unsupportedAgents.length > 0) {
                     response.unsupportedAgents = unsupportedAgents;
                     response.notice = "Some agents are running a version older than 1.6.0 and do not support API stack listing. Upgrade them to include their stacks.";
@@ -281,7 +297,8 @@ export class ApiRouter extends Router {
                 res.json(response);
             } catch (e) {
                 log.error("api", "GET /api/stacks error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to list stacks" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to list stacks" });
             }
         });
 
@@ -291,7 +308,8 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
@@ -313,7 +331,8 @@ export class ApiRouter extends Router {
                             },
                         });
                     } else {
-                        res.status(404).json({ ok: false, error: result.msg || "Stack not found on agent" });
+                        res.status(404).json({ ok: false,
+                            error: result.msg || "Stack not found on agent" });
                     }
                     return;
                 }
@@ -335,10 +354,12 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
+                    res.status(404).json({ ok: false,
+                        error: "Stack not found" });
                 } else {
                     log.error("api", `GET /api/stacks/${req.params.name}/status error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to get stack status" });
+                    res.status(500).json({ ok: false,
+                        error: "Failed to get stack status" });
                 }
             }
         });
@@ -349,23 +370,27 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
                 if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "startStack", req.params.name);
                     if (result.ok) {
-                        res.json({ ok: true, message: `Stack '${req.params.name}' started on ${endpoint}`, endpoint });
+                        res.json({ ok: true,
+                            message: `Stack '${req.params.name}' started on ${endpoint}`,
+                            endpoint });
                     } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Start failed on agent" });
+                        res.status(500).json({ ok: false,
+                            error: result.msg || "Start failed on agent" });
                     }
                     return;
                 }
 
                 const stack = await Stack.getStack(server, req.params.name, false);
 
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "up", "-d", "--remove-orphans"], {
+                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "up", "-d", "--remove-orphans" ], {
                     cwd: stack.path,
                     encoding: "utf-8",
                 });
@@ -377,10 +402,12 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
+                    res.status(404).json({ ok: false,
+                        error: "Stack not found" });
                 } else {
                     log.error("api", `POST /api/stacks/${req.params.name}/start error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to start stack" });
+                    res.status(500).json({ ok: false,
+                        error: "Failed to start stack" });
                 }
             }
         });
@@ -391,16 +418,20 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
                 if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "stopStack", req.params.name);
                     if (result.ok) {
-                        res.json({ ok: true, message: `Stack '${req.params.name}' stopped on ${endpoint}`, endpoint });
+                        res.json({ ok: true,
+                            message: `Stack '${req.params.name}' stopped on ${endpoint}`,
+                            endpoint });
                     } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Stop failed on agent" });
+                        res.status(500).json({ ok: false,
+                            error: result.msg || "Stop failed on agent" });
                     }
                     return;
                 }
@@ -408,11 +439,12 @@ export class ApiRouter extends Router {
                 const stack = await Stack.getStack(server, req.params.name, false);
 
                 if (await stack.isSelfStack()) {
-                    res.status(400).json({ ok: false, error: "Cannot stop the stack that contains Dockge itself" });
+                    res.status(400).json({ ok: false,
+                        error: "Cannot stop the stack that contains Dockge itself" });
                     return;
                 }
 
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "stop"], {
+                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "stop" ], {
                     cwd: stack.path,
                     encoding: "utf-8",
                 });
@@ -424,10 +456,12 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
+                    res.status(404).json({ ok: false,
+                        error: "Stack not found" });
                 } else {
                     log.error("api", `POST /api/stacks/${req.params.name}/stop error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to stop stack" });
+                    res.status(500).json({ ok: false,
+                        error: "Failed to stop stack" });
                 }
             }
         });
@@ -438,23 +472,27 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
                 if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "restartStack", req.params.name);
                     if (result.ok) {
-                        res.json({ ok: true, message: `Stack '${req.params.name}' restarted on ${endpoint}`, endpoint });
+                        res.json({ ok: true,
+                            message: `Stack '${req.params.name}' restarted on ${endpoint}`,
+                            endpoint });
                     } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Restart failed on agent" });
+                        res.status(500).json({ ok: false,
+                            error: result.msg || "Restart failed on agent" });
                     }
                     return;
                 }
 
                 const stack = await Stack.getStack(server, req.params.name, false);
 
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "restart"], {
+                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "restart" ], {
                     cwd: stack.path,
                     encoding: "utf-8",
                 });
@@ -466,10 +504,12 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
+                    res.status(404).json({ ok: false,
+                        error: "Stack not found" });
                 } else {
                     log.error("api", `POST /api/stacks/${req.params.name}/restart error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to restart stack" });
+                    res.status(500).json({ ok: false,
+                        error: "Failed to restart stack" });
                 }
             }
         });
@@ -480,16 +520,20 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
                 if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "downStack", req.params.name);
                     if (result.ok) {
-                        res.json({ ok: true, message: `Stack '${req.params.name}' downed on ${endpoint}`, endpoint });
+                        res.json({ ok: true,
+                            message: `Stack '${req.params.name}' downed on ${endpoint}`,
+                            endpoint });
                     } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Down failed on agent" });
+                        res.status(500).json({ ok: false,
+                            error: result.msg || "Down failed on agent" });
                     }
                     return;
                 }
@@ -497,11 +541,12 @@ export class ApiRouter extends Router {
                 const stack = await Stack.getStack(server, req.params.name, false);
 
                 if (await stack.isSelfStack()) {
-                    res.status(400).json({ ok: false, error: "Cannot down the stack that contains Dockge itself" });
+                    res.status(400).json({ ok: false,
+                        error: "Cannot down the stack that contains Dockge itself" });
                     return;
                 }
 
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "down"], {
+                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "down" ], {
                     cwd: stack.path,
                     encoding: "utf-8",
                 });
@@ -513,10 +558,12 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
+                    res.status(404).json({ ok: false,
+                        error: "Stack not found" });
                 } else {
                     log.error("api", `POST /api/stacks/${req.params.name}/down error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to down stack" });
+                    res.status(500).json({ ok: false,
+                        error: "Failed to down stack" });
                 }
             }
         });
@@ -527,21 +574,25 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid endpoint format" });
                     return;
                 }
 
                 if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "dockerSystemPrune", true, false);
                     if (result.ok) {
-                        res.json({ ok: true, output: result.msg || "", endpoint });
+                        res.json({ ok: true,
+                            output: result.msg || "",
+                            endpoint });
                     } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Prune failed on agent" });
+                        res.status(500).json({ ok: false,
+                            error: result.msg || "Prune failed on agent" });
                     }
                     return;
                 }
 
-                const result = await childProcessAsync.spawn("docker", ["system", "prune", "-a", "-f"], {
+                const result = await childProcessAsync.spawn("docker", [ "system", "prune", "-a", "-f" ], {
                     encoding: "utf-8",
                 });
 
@@ -552,7 +603,8 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 log.error("api", "POST /api/system/prune error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to prune system" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to prune system" });
             }
         });
 
@@ -566,10 +618,12 @@ export class ApiRouter extends Router {
                 } else {
                     result = await scanAllStacks(server.stacksDir);
                 }
-                res.json({ ok: true, ...result });
+                res.json({ ok: true,
+                    ...result });
             } catch (e) {
                 log.error("api", "GET /api/version-sync/scan error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to scan for version mismatches" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to scan for version mismatches" });
             }
         });
 
@@ -578,28 +632,36 @@ export class ApiRouter extends Router {
             try {
                 const { stackName, service, newImage } = req.body;
                 if (typeof stackName !== "string" || typeof service !== "string" || typeof newImage !== "string") {
-                    res.status(400).json({ ok: false, error: "stackName, service, and newImage are required strings" });
+                    res.status(400).json({ ok: false,
+                        error: "stackName, service, and newImage are required strings" });
                     return;
                 }
                 if (!VALID_STACK_NAME.test(stackName)) {
-                    res.status(400).json({ ok: false, error: "Invalid stack name" });
+                    res.status(400).json({ ok: false,
+                        error: "Invalid stack name" });
                     return;
                 }
 
                 const scanResult = await scanStack(server.stacksDir, stackName);
                 const mismatch = scanResult.mismatches.find(m => m.service === service);
                 if (!mismatch) {
-                    res.status(404).json({ ok: false, error: "No mismatch found for this service" });
+                    res.status(404).json({ ok: false,
+                        error: "No mismatch found for this service" });
                     return;
                 }
 
                 const { oldImage } = syncComposeFile(mismatch.composePath, service, newImage, server.stacksDir);
                 await VersionSyncHistoryService.recordSync(stackName, "", service, oldImage, newImage, mismatch.composePath, false);
 
-                res.json({ ok: true, stackName, service, oldImage, newImage });
+                res.json({ ok: true,
+                    stackName,
+                    service,
+                    oldImage,
+                    newImage });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/sync error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to sync version" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to sync version" });
             }
         });
 
@@ -618,13 +680,19 @@ export class ApiRouter extends Router {
                 for (const mismatch of scanResult.mismatches) {
                     const { oldImage } = syncComposeFile(mismatch.composePath, mismatch.service, mismatch.runningImage, server.stacksDir);
                     await VersionSyncHistoryService.recordSync(mismatch.stackName, "", mismatch.service, oldImage, mismatch.runningImage, mismatch.composePath, false);
-                    synced.push({ stackName: mismatch.stackName, service: mismatch.service, oldImage, newImage: mismatch.runningImage });
+                    synced.push({ stackName: mismatch.stackName,
+                        service: mismatch.service,
+                        oldImage,
+                        newImage: mismatch.runningImage });
                 }
 
-                res.json({ ok: true, synced, count: synced.length });
+                res.json({ ok: true,
+                    synced,
+                    count: synced.length });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/sync-all error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to sync all versions" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to sync all versions" });
             }
         });
 
@@ -632,16 +700,26 @@ export class ApiRouter extends Router {
         router.get("/api/version-sync/history", async (req: Request, res: Response) => {
             try {
                 const options: Record<string, unknown> = {};
-                if (req.query.limit) options.limit = parseInt(req.query.limit as string, 10);
-                if (req.query.offset) options.offset = parseInt(req.query.offset as string, 10);
-                if (req.query.stack) options.stackName = req.query.stack as string;
-                if (req.query.service) options.service = req.query.service as string;
+                if (req.query.limit) {
+                    options.limit = parseInt(req.query.limit as string, 10);
+                }
+                if (req.query.offset) {
+                    options.offset = parseInt(req.query.offset as string, 10);
+                }
+                if (req.query.stack) {
+                    options.stackName = req.query.stack as string;
+                }
+                if (req.query.service) {
+                    options.service = req.query.service as string;
+                }
 
                 const result = await VersionSyncHistoryService.getHistory(options);
-                res.json({ ok: true, ...result });
+                res.json({ ok: true,
+                    ...result });
             } catch (e) {
                 log.error("api", "GET /api/version-sync/history error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to get version sync history" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to get version sync history" });
             }
         });
 
@@ -650,13 +728,15 @@ export class ApiRouter extends Router {
             try {
                 const { stackName, service } = req.body;
                 if (typeof stackName !== "string" || typeof service !== "string") {
-                    res.status(400).json({ ok: false, error: "stackName and service are required strings" });
+                    res.status(400).json({ ok: false,
+                        error: "stackName and service are required strings" });
                     return;
                 }
 
                 const revertable = await VersionSyncHistoryService.getRevertableEntries(stackName, service);
                 if (revertable.length === 0) {
-                    res.status(404).json({ ok: false, error: "No revertable sync found" });
+                    res.status(404).json({ ok: false,
+                        error: "No revertable sync found" });
                     return;
                 }
 
@@ -664,10 +744,14 @@ export class ApiRouter extends Router {
                 syncComposeFile(entry.composePath, entry.service, entry.oldImage, server.stacksDir);
                 await VersionSyncHistoryService.recordSync(entry.stackName, "", entry.service, entry.newImage, entry.oldImage, entry.composePath, true);
 
-                res.json({ ok: true, stackName, service, revertedTo: entry.oldImage });
+                res.json({ ok: true,
+                    stackName,
+                    service,
+                    revertedTo: entry.oldImage });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/revert error: " + e);
-                res.status(500).json({ ok: false, error: "Failed to revert version sync" });
+                res.status(500).json({ ok: false,
+                    error: "Failed to revert version sync" });
             }
         });
 

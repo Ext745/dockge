@@ -122,6 +122,11 @@
                                 <span v-else class="badge bg-secondary me-2">{{ $t($root.agentStatusList[endpoint]) }}</span>
                             </template>
 
+                            <!-- Maintenance -->
+                            <router-link v-if="$root.agentStatusList[endpoint] === 'online'" class="btn btn-sm btn-normal me-2" data-toggle="tooltip" :title="$t('tooltipAgentMaintenance')" :to="endpoint !== '' ? `/agent/${endpoint}` : '/agent'">
+                                <font-awesome-icon icon="wrench" class="me-1" />{{ $t("maintenance") }}
+                            </router-link>
+
                             <!-- Agent Display Name -->
                             <template v-if="$root.agentStatusList[endpoint]">
                                 <span v-if="endpoint === '' && agentItem.name === ''" class="badge bg-secondary me-2">Current</span>
@@ -376,7 +381,10 @@ export default {
                     this.pendingScans--;
                     if (res.ok && res.data && res.data.mismatches) {
                         for (const m of res.data.mismatches) {
-                            this.allMismatches.push({ ...m, endpoint });
+                            this.allMismatches.push({
+                                ...m,
+                                endpoint
+                            });
                         }
                     } else if (!res.ok) {
                         this.scanErrors.push({
@@ -418,7 +426,11 @@ export default {
                     }
                     if (remaining <= 0) {
                         this.versionSyncLoading = false;
-                        this.$root.toastRes({ ok: true, msg: "allVersionsSynced", msgi18n: true });
+                        this.$root.toastRes({
+                            ok: true,
+                            msg: "allVersionsSynced",
+                            msgi18n: true
+                        });
                     }
                 });
             }

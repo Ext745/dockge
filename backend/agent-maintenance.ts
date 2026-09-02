@@ -61,7 +61,15 @@ export class AgentMaintenance {
         };
 
         try {
+            // "docker image ls" hides dangling images by default (Docker CLI: "-a, --all
+            // Show all images (default hides intermediate and dangling images)"). Query them
+            // separately and merge, otherwise dangling images never show up here even though
+            // "Prune Images" happily removes them.
             const res = await childProcessAsync.spawn("docker", [ "image", "ls", "--format", "json" ], {
+                encoding: "utf-8",
+            });
+
+            const danglingRes = await childProcessAsync.spawn("docker", [ "image", "ls", "--format", "json", "-f", "dangling=true" ], {
                 encoding: "utf-8",
             });
 
@@ -70,6 +78,9 @@ export class AgentMaintenance {
             }
 
             const lines = res.stdout?.toString().split("\n");
+            if (danglingRes.stdout) {
+                lines.push(...danglingRes.stdout.toString().split("\n"));
+            }
 
             for (let line of lines) {
                 if (line != "") {
@@ -86,7 +97,10 @@ export class AgentMaintenance {
                             Created: [ imageInfo.CreatedSince, imageInfo.CreatedAt ],
                             Size: [ imageInfo.Size, this.getByteSize(imageInfo.Size) ]
                         },
-                        dangling: imageInfo.Containers === "0",
+                        // "Containers" is unreliable for this purpose (it reports "N/A" rather than "0" for
+                        // unused images on current Docker CLI versions), so treat untagged images as
+                        // dangling unconditionally - that's unambiguous regardless of what Containers says.
+                        dangling: noneTag || imageInfo.Containers === "0",
                         danglingLabel: noneTag ? "dangling" : "unused",
                         excludedActions: noneTag ? [ DockerArtefactAction.Pull ] : []
                     });

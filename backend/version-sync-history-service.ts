@@ -34,7 +34,7 @@ export class VersionSyncHistoryService {
         await R.exec(
             `INSERT INTO version_sync_history (stack_name, endpoint, service, old_image, new_image, compose_path, is_revert, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [stackName, endpoint, service, oldImage, newImage, composePath, isRevert ? 1 : 0, new Date().toISOString()]
+            [ stackName, endpoint, service, oldImage, newImage, composePath, isRevert ? 1 : 0, new Date().toISOString() ]
         );
     }
 
@@ -64,7 +64,7 @@ export class VersionSyncHistoryService {
 
         const rows = await R.getAll(
             `SELECT * FROM version_sync_history ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
-            [...params, limit, offset]
+            [ ...params, limit, offset ]
         );
 
         const entries: VersionSyncHistoryEntry[] = rows.map((row: Record<string, unknown>) => ({
@@ -79,7 +79,8 @@ export class VersionSyncHistoryService {
             createdAt: row.created_at as string,
         }));
 
-        return { entries, total };
+        return { entries,
+            total };
     }
 
     static async getRevertableEntries(stackName?: string, service?: string): Promise<VersionSyncHistoryEntry[]> {
@@ -128,8 +129,8 @@ export class VersionSyncHistoryService {
 
     static async cleanupOldEntries(retentionDays: number = 90): Promise<number> {
         const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
-        const before = await R.getRow("SELECT COUNT(*) as cnt FROM version_sync_history WHERE created_at < ?", [cutoff]);
-        await R.exec("DELETE FROM version_sync_history WHERE created_at < ?", [cutoff]);
+        const before = await R.getRow("SELECT COUNT(*) as cnt FROM version_sync_history WHERE created_at < ?", [ cutoff ]);
+        await R.exec("DELETE FROM version_sync_history WHERE created_at < ?", [ cutoff ]);
         return before?.cnt ?? 0;
     }
 }

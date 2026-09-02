@@ -1,0 +1,69 @@
+From 5b85110526abcb416229851d78dbd04bba761944 Mon Sep 17 00:00:00 2001
+From: Dockge Feature Port <port@example.com>
+Date: Tue, 1 Sep 2026 01:24:11 +0000
+Subject: [PATCH 2/2] Fix pre-existing object-property-newline lint errors
+
+Two spots (unrelated to the agent-maintenance port) tripped
+eslint's object-property-newline rule: the redacted-config log
+line in dockge-server.ts, and two toast/push object literals in
+DashboardHome.vue. Reformatted to one property per line.
+
+Verified: tsc --noEmit clean, vite frontend build clean, eslint
+clean on both files. Full-project eslint still reports ~99
+pre-existing errors / ~114 warnings elsewhere (mostly
+array-bracket-spacing and more object-property-newline spots in
+other files) -- out of scope for this change, noted for
+visibility only.
+---
+ backend/dockge-server.ts             |  5 ++++-
+ frontend/src/pages/DashboardHome.vue | 11 +++++++++--
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/backend/dockge-server.ts b/backend/dockge-server.ts
+index 932b9fb..9cd0688 100644
+--- a/backend/dockge-server.ts
++++ b/backend/dockge-server.ts
+@@ -167,7 +167,10 @@ export class DockgeServer {
+         this.config.enableConsole = args.enableConsole || process.env.DOCKGE_ENABLE_CONSOLE === "true" || false;
+         this.stacksDir = this.config.stacksDir;
+ 
+-        const safeConfig = { ...this.config, sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined };
++        const safeConfig = {
++            ...this.config,
++            sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined
++        };
+         log.debug("server", safeConfig);
+ 
+         this.packageJSON = packageJSON as PackageJson;
+diff --git a/frontend/src/pages/DashboardHome.vue b/frontend/src/pages/DashboardHome.vue
+index 98002b5..27ebdf1 100644
+--- a/frontend/src/pages/DashboardHome.vue
++++ b/frontend/src/pages/DashboardHome.vue
+@@ -381,7 +381,10 @@ export default {
+                     this.pendingScans--;
+                     if (res.ok && res.data && res.data.mismatches) {
+                         for (const m of res.data.mismatches) {
+-                            this.allMismatches.push({ ...m, endpoint });
++                            this.allMismatches.push({
++                                ...m,
++                                endpoint
++                            });
+                         }
+                     } else if (!res.ok) {
+                         this.scanErrors.push({
+@@ -423,7 +426,11 @@ export default {
+                     }
+                     if (remaining <= 0) {
+                         this.versionSyncLoading = false;
+-                        this.$root.toastRes({ ok: true, msg: "allVersionsSynced", msgi18n: true });
++                        this.$root.toastRes({
++                            ok: true,
++                            msg: "allVersionsSynced",
++                            msgi18n: true
++                        });
+                     }
+                 });
+             }
+-- 
+2.43.0
+

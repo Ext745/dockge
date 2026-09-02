@@ -99,6 +99,94 @@ export function statusColor(status : number) : string {
     }
 }
 
+// Ported from hamphh/dockge 1.2 for the stack-list category filter dropdown. Unlike
+// statusName()/statusNameShort()/statusColor() above (kept as-is, still used by Uptime.vue's
+// status pill), this covers all 6 status constants including UNHEALTHY and
+// RUNNING_AND_EXITED, which those switch statements don't distinguish.
+export class StackStatusInfo {
+
+    private static INFOS_BY_ID = new Map<number, StackStatusInfo>();
+    private static DEFAULT = new StackStatusInfo("?", [], "secondary", "secondary");
+    static ALL: StackStatusInfo[] = [];
+
+    static {
+        this.addInfo(new StackStatusInfo("unhealthy", [ UNHEALTHY ], "danger", "danger"));
+        this.addInfo(new StackStatusInfo("active", [ RUNNING ], "primary", "primary"));
+        this.addInfo(new StackStatusInfo("partially", [ RUNNING_AND_EXITED ], "info", "info"));
+        this.addInfo(new StackStatusInfo("exited", [ EXITED ], "warning", "warning"));
+        this.addInfo(new StackStatusInfo("inactive", [ CREATED_FILE, CREATED_STACK ], "dark", "secondary"));
+    }
+
+    private static addInfo(info: StackStatusInfo) {
+        for (const id of info.statusIds) {
+            this.INFOS_BY_ID.set(id, info);
+        }
+        this.ALL.push(info);
+    }
+
+    static get(statusId: number) {
+        return this.INFOS_BY_ID.get(statusId) ?? this.DEFAULT;
+    }
+
+    constructor(readonly label: string, readonly statusIds: number[], readonly badgeColor: string, readonly textColor: string ) {}
+}
+
+export class StackFilter {
+    agents = new StackFilterCategory<string>("agent");
+    status = new StackFilterCategory<string>("status");
+    attributes = new StackFilterCategory<string>("attribute");
+
+    categories = [ this.agents, this.status, this.attributes ];
+
+    isFilterSelected() {
+        for (const category of this.categories) {
+            if (category.isFilterSelected()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    clear() {
+        for (const category of this.categories) {
+            category.selected.clear();
+        }
+    }
+}
+
+export class StackFilterCategory<T> {
+    options: Record<string, T> = {};
+    selected: Set<T> = new Set();
+
+    constructor(readonly label: string) { }
+
+    hasOptions() {
+        return Object.keys(this.options).length > 0;
+    }
+
+    isFilterSelected() {
+        if (this.selected.size === 0) {
+            return false;
+        }
+
+        for (const ov of Object.values(this.options)) {
+            if (this.selected.has(ov)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    toggleSelected(value: T) {
+        if (this.selected.has(value)) {
+            this.selected.delete(value);
+        } else {
+            this.selected.add(value);
+        }
+    }
+}
+
 export const isDev = process.env.NODE_ENV === "development";
 export const TERMINAL_COLS = 105;
 export const TERMINAL_ROWS = 10;

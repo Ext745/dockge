@@ -46,14 +46,14 @@
                             <font-awesome-icon icon="stop" class="me-1" />
                             {{ $t("downStack") }}
                         </BDropdownItem>
+                        <BDropdownItem v-if="!isEditMode" variant="danger" :disabled="processing" @click="showDeleteDialog = !showDeleteDialog">
+                            <font-awesome-icon icon="trash" class="me-1" />
+                            {{ $t("deleteStack") }}
+                        </BDropdownItem>
                     </BDropdown>
                 </div>
 
                 <button v-if="isEditMode && !isAdd" class="btn btn-normal" :disabled="processing" @click="discardStack">{{ $t("discardStack") }}</button>
-                <button v-if="!isEditMode" class="btn btn-danger" :disabled="processing" @click="showDeleteDialog = !showDeleteDialog">
-                    <font-awesome-icon icon="trash" class="me-1" />
-                    {{ $t("deleteStack") }}
-                </button>
 
                 <button v-if="!isEditMode && !isAdd && active" class="btn btn-normal ms-2" :disabled="versionScanLoading" @click="scanVersionSync">
                     <font-awesome-icon icon="code-compare" class="me-1" />
@@ -120,17 +120,7 @@
             </transition>
 
             <!-- Progress Terminal -->
-            <transition name="slide-fade" appear>
-                <Terminal
-                    v-show="showProgressTerminal"
-                    ref="progressTerminal"
-                    class="mb-3 terminal"
-                    :name="terminalName"
-                    :endpoint="endpoint"
-                    :rows="progressTerminalRows"
-                    @has-data="showProgressTerminal = true; submitted = true;"
-                ></Terminal>
-            </transition>
+            <ProgressTerminal ref="progressTerminal" :name="terminalName" :endpoint="endpoint" />
 
             <div v-if="stack.isManagedByDockge" class="row">
                 <div class="col-lg-6">
@@ -271,6 +261,9 @@
 
                     <!-- YAML editor -->
                     <div class="shadow-box mb-3 editor-box" :class="{'edit-mode' : isEditMode}">
+                        <button v-if="isEditMode" v-b-modal.compose-editor-modal class="expand-button">
+                            <font-awesome-icon icon="expand" />
+                        </button>
                         <code-mirror
                             ref="editor"
                             v-model="stack.composeYAML"
@@ -287,6 +280,30 @@
                     <div v-if="isEditMode" class="mb-3">
                         {{ yamlError }}
                     </div>
+
+                    <!-- Primary compose.yaml fullscreen editor (CodeMirror) -->
+                    <BModal
+                        id="compose-editor-modal" :title="stack.composeFileName"
+                        scrollable size="fullscreen" hide-footer
+                    >
+                        <div class="shadow-box mb-3 editor-box" :class="{'edit-mode' : isEditMode}">
+                            <code-mirror
+                                ref="composeEditorModal"
+                                v-model="stack.composeYAML"
+                                :extensions="extensions"
+                                minimal
+                                wrap="true"
+                                dark="true"
+                                tab="true"
+                                :disabled="!isEditMode"
+                                :hasFocus="editorFocus"
+                                @change="yamlCodeChange"
+                            />
+                        </div>
+                        <div v-if="isEditMode" class="mb-3">
+                            {{ yamlError }}
+                        </div>
+                    </BModal>
 
                     <!-- ENV editor -->
                     <div v-if="isEditMode">
@@ -360,11 +377,11 @@ import {
     copyYAMLComments, envsubstYAML,
     getCombinedTerminalName,
     getComposeTerminalName,
-    PROGRESS_TERMINAL_ROWS,
     RUNNING
 } from "../../../common/util-common";
 import { BModal } from "bootstrap-vue-next";
 import NetworkInput from "../components/NetworkInput.vue";
+import ProgressTerminal from "../components/ProgressTerminal.vue";
 import dotenv from "dotenv";
 import { ref } from "vue";
 
@@ -389,6 +406,7 @@ export default {
         FontAwesomeIcon,
         CodeMirror,
         BModal,
+        ProgressTerminal,
     },
     beforeRouteUpdate(to, from, next) {
         this.exitConfirm(next);
@@ -429,8 +447,6 @@ export default {
             envsubstJSONConfig: {},
             yamlError: "",
             processing: true,
-            showProgressTerminal: false,
-            progressTerminalRows: PROGRESS_TERMINAL_ROWS,
             combinedTerminalRows: COMBINED_TERMINAL_ROWS,
             combinedTerminalCols: COMBINED_TERMINAL_COLS,
             stack: {
@@ -701,8 +717,19 @@ export default {
             this.$root.emitAgent(this.endpoint, "leaveCombinedTerminal", this.stack.name, () => {});
         },
 
-        bindTerminal() {
-            this.$refs.progressTerminal?.bind(this.endpoint, this.terminalName);
+        // Show the progress terminal immediately and bind it for a compose action that
+        // streams live docker/docker-compose output (deploy/start/stop/down/restart).
+        startComposeAction() {
+            this.processing = true;
+            this.submitted = true;
+            this.$refs.progressTerminal?.show();
+        },
+
+        // Auto-collapses the progress terminal 10s after the action finishes (see
+        // ProgressTerminal.vue), matching hamphh/dockge 1.2's behavior.
+        stopComposeAction() {
+            this.processing = false;
+            this.$refs.progressTerminal?.hideWithTimeout();
         },
 
         loadStack() {
@@ -712,7 +739,6 @@ export default {
                     this.stack = res.stack;
                     this.yamlCodeChange();
                     this.processing = false;
-                    this.bindTerminal();
                 } else {
                     this.$root.toastRes(res);
                 }
@@ -720,18 +746,14 @@ export default {
         },
 
         deployStack() {
-            this.processing = true;
-
             if (!this.jsonConfig.services) {
                 this.$root.toastError("No services found in compose.yaml");
-                this.processing = false;
                 return;
             }
 
             // Check if services is object
             if (typeof this.jsonConfig.services !== "object") {
                 this.$root.toastError("Services must be an object");
-                this.processing = false;
                 return;
             }
 
@@ -749,10 +771,14 @@ export default {
                 }
             }
 
-            this.bindTerminal();
+            // isAdd flips to false as soon as startComposeAction() marks this submitted,
+            // so capture it now - the server still needs to know this was a new stack.
+            const isAdd = this.isAdd;
 
-            this.$root.emitAgent(this.stack.endpoint, "deployStack", this.stack.name, this.stack.composeYAML, this.stack.composeENV, this.stack.composeOverrideYAML || "", this.isAdd, (res) => {
-                this.processing = false;
+            this.startComposeAction();
+
+            this.$root.emitAgent(this.stack.endpoint, "deployStack", this.stack.name, this.stack.composeYAML, this.stack.composeENV, this.stack.composeOverrideYAML || "", isAdd, (res) => {
+                this.stopComposeAction();
                 this.$root.toastRes(res);
 
                 if (res.ok) {
@@ -777,37 +803,37 @@ export default {
         },
 
         startStack() {
-            this.processing = true;
+            this.startComposeAction();
 
             this.$root.emitAgent(this.endpoint, "startStack", this.stack.name, (res) => {
-                this.processing = false;
+                this.stopComposeAction();
                 this.$root.toastRes(res);
             });
         },
 
         stopStack() {
-            this.processing = true;
+            this.startComposeAction();
 
             this.$root.emitAgent(this.endpoint, "stopStack", this.stack.name, (res) => {
-                this.processing = false;
+                this.stopComposeAction();
                 this.$root.toastRes(res);
             });
         },
 
         downStack() {
-            this.processing = true;
+            this.startComposeAction();
 
             this.$root.emitAgent(this.endpoint, "downStack", this.stack.name, (res) => {
-                this.processing = false;
+                this.stopComposeAction();
                 this.$root.toastRes(res);
             });
         },
 
         restartStack() {
-            this.processing = true;
+            this.startComposeAction();
 
             this.$root.emitAgent(this.endpoint, "restartStack", this.stack.name, (res) => {
-                this.processing = false;
+                this.stopComposeAction();
                 this.$root.toastRes(res);
             });
         },

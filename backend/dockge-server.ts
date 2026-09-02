@@ -26,6 +26,7 @@ import { DockerSocketHandler } from "./agent-socket-handlers/docker-socket-handl
 import expressStaticGzip from "express-static-gzip";
 import path from "path";
 import { TerminalSocketHandler } from "./agent-socket-handlers/terminal-socket-handler";
+import { AgentMaintenanceSocketHandler } from "./agent-socket-handlers/agent-maintenance-socket-handler";
 import { Stack } from "./stack";
 import { Cron } from "croner";
 import gracefulShutdown from "http-graceful-shutdown";
@@ -75,6 +76,7 @@ export class DockgeServer {
     agentSocketHandlerList : AgentSocketHandler[] = [
         new DockerSocketHandler(),
         new TerminalSocketHandler(),
+        new AgentMaintenanceSocketHandler(),
     ];
 
     /**
@@ -165,7 +167,10 @@ export class DockgeServer {
         this.config.enableConsole = args.enableConsole || process.env.DOCKGE_ENABLE_CONSOLE === "true" || false;
         this.stacksDir = this.config.stacksDir;
 
-        const safeConfig = { ...this.config, sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined };
+        const safeConfig = {
+            ...this.config,
+            sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined
+        };
         log.debug("server", safeConfig);
 
         this.packageJSON = packageJSON as PackageJson;

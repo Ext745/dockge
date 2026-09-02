@@ -51,7 +51,8 @@ export function generateTwoFASecret(username: string): { secret: string; uri: st
     const buffer = crypto.randomBytes(20);
     const secret = base32Encode(buffer);
     const uri = `otpauth://totp/Dockge:${encodeURIComponent(username)}?secret=${secret}&issuer=Dockge`;
-    return { secret, uri };
+    return { secret,
+        uri };
 }
 
 export function verifyTwoFAToken(token: string, base32Secret: string): boolean {

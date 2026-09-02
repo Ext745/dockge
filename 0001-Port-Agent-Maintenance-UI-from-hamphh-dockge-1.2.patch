@@ -1,0 +1,841 @@
+From 49668ceb68536fda92095eb33f72be2de0a98ec5 Mon Sep 17 00:00:00 2001
+From: Dockge Feature Port <port@example.com>
+Date: Tue, 1 Sep 2026 01:09:32 +0000
+Subject: [PATCH 1/2] Port Agent Maintenance UI from hamphh/dockge 1.2
+
+- Wire the existing (previously unwired) agent-maintenance.ts backend
+  logic and DockerArtefact* types to a new socket handler
+- Add AgentMaintenance.vue page, DockerArtefact.vue and
+  ProgressTerminal.vue components (per-agent view of containers,
+  images, networks, volumes: prune, remove, pull)
+- Add /agent and /agent/:endpoint routes, a Maintenance link on
+  each agent's card in DashboardHome, missing i18n strings, the
+  missing faChevronRight icon, and the missing $dark-header-active-bg
+  scss var
+- Verified: tsc --noEmit clean, vite frontend build clean, eslint
+  clean on all touched/added files (pre-existing lint debt in
+  dockge-server.ts/DashboardHome.vue left untouched)
+---
+ .../agent-maintenance-socket-handler.ts       | 112 +++++++++
+ backend/dockge-server.ts                      |   2 +
+ frontend/components.d.ts                      |   6 +
+ frontend/src/components/DockerArtefact.vue    | 232 ++++++++++++++++++
+ frontend/src/components/ProgressTerminal.vue  |  92 +++++++
+ frontend/src/icon.ts                          |   2 +
+ frontend/src/lang/en.json                     |  27 +-
+ frontend/src/pages/AgentMaintenance.vue       | 186 ++++++++++++++
+ frontend/src/pages/DashboardHome.vue          |   5 +
+ frontend/src/router.ts                        |   9 +
+ frontend/src/styles/vars.scss                 |   1 +
+ 11 files changed, 673 insertions(+), 1 deletion(-)
+ create mode 100644 backend/agent-socket-handlers/agent-maintenance-socket-handler.ts
+ create mode 100644 frontend/src/components/DockerArtefact.vue
+ create mode 100644 frontend/src/components/ProgressTerminal.vue
+ create mode 100644 frontend/src/pages/AgentMaintenance.vue
+
+diff --git a/backend/agent-socket-handlers/agent-maintenance-socket-handler.ts b/backend/agent-socket-handlers/agent-maintenance-socket-handler.ts
+new file mode 100644
+index 0000000..8dd6e23
+--- /dev/null
++++ b/backend/agent-socket-handlers/agent-maintenance-socket-handler.ts
+@@ -0,0 +1,112 @@
++import { AgentSocketHandler } from "../agent-socket-handler";
++import { AgentSocket } from "../../common/agent-socket";
++import { DockgeServer } from "../dockge-server";
++import { log } from "../log";
++import {
++    callbackResult,
++    callbackError,
++    checkLogin,
++    DockgeSocket,
++    ValidationError
++} from "../util-server";
++import { AgentMaintenance } from "../agent-maintenance";
++import { DockerArtefactAction, DockerArtefactData, DockerArtefactInfos } from "../../common/types";
++
++export class AgentMaintenanceSocketHandler extends AgentSocketHandler {
++
++    create(socket: DockgeSocket, server: DockgeServer, agentSocket: AgentSocket) {
++
++        const agentMaintenance = new AgentMaintenance(server);
++
++        agentSocket.on("getDockerArtefactData", async (artefact: unknown, callback) => {
++            try {
++                checkLogin(socket);
++
++                if (typeof(artefact) !== "string") {
++                    throw new ValidationError("artefact must be a string");
++                }
++
++                let artefactData: DockerArtefactData = {
++                    info: DockerArtefactInfos[artefact],
++                    data: []
++                };
++
++                if (artefact === "container") {
++                    artefactData = await agentMaintenance.getContainerData();
++                } else if (artefact === "image") {
++                    artefactData = await agentMaintenance.getImageData();
++                } else if (artefact === "network") {
++                    artefactData = await agentMaintenance.getNetworkData();
++                } else if (artefact === "volume") {
++                    artefactData = await agentMaintenance.getVolumeData();
++                } else {
++                    log.error("getDockerArtefactData", `Unknown artefact '${artefact}'`);
++                }
++
++                callbackResult({
++                    ok: true,
++                    data: artefactData,
++                }, callback);
++            } catch (e) {
++                callbackError(e, callback);
++            }
++        });
++
++        agentSocket.on("executeDockerArtefactAction", async (artefact: unknown, action: unknown, ids: unknown, callback) => {
++            try {
++                checkLogin(socket);
++
++                if (typeof(artefact) !== "string") {
++                    throw new ValidationError("artefact must be a string");
++                }
++                if (typeof(action) !== "string") {
++                    throw new ValidationError("action must be a string");
++                }
++                if (!Array.isArray(ids) || ids.some(item => typeof item !== "string")) {
++                    throw new ValidationError("ids must be a string[]");
++                }
++
++                if (action === DockerArtefactAction.Prune || action === DockerArtefactAction.PruneAll) {
++                    await agentMaintenance.prune(socket, artefact, action === DockerArtefactAction.PruneAll);
++                } else if (action === DockerArtefactAction.Remove) {
++                    await agentMaintenance.remove(socket, artefact, ids);
++                } else if (artefact === "image" && action === DockerArtefactAction.Pull) {
++                    await agentMaintenance.pullImages(socket, ids);
++                } else {
++                    log.error("executeDockerArtefactAction", `Unsupport combination: artefact '${artefact}' & action '${action}'`);
++                }
++
++                callbackResult({
++                    ok: true,
++                    msg: "Action executed successfully",
++                    msgi18n: true,
++                }, callback);
++            } catch (e) {
++                callbackError(e, callback);
++            }
++        });
++
++        agentSocket.on("dockerSystemPrune", async (all: unknown, volumes: unknown, callback) => {
++            try {
++                checkLogin(socket);
++
++                if (typeof(all) !== "boolean") {
++                    throw new ValidationError("all must be a boolean");
++                }
++                if (typeof(volumes) !== "boolean") {
++                    throw new ValidationError("volumes must be a boolean");
++                }
++
++                await agentMaintenance.systemPrune(socket, all, volumes);
++
++                callbackResult({
++                    ok: true,
++                    msg: "Successfully pruned",
++                    msgi18n: true,
++                }, callback);
++            } catch (e) {
++                callbackError(e, callback);
++            }
++        });
++    }
++}
+diff --git a/backend/dockge-server.ts b/backend/dockge-server.ts
+index b6384bb..932b9fb 100644
+--- a/backend/dockge-server.ts
++++ b/backend/dockge-server.ts
+@@ -26,6 +26,7 @@ import { DockerSocketHandler } from "./agent-socket-handlers/docker-socket-handl
+ import expressStaticGzip from "express-static-gzip";
+ import path from "path";
+ import { TerminalSocketHandler } from "./agent-socket-handlers/terminal-socket-handler";
++import { AgentMaintenanceSocketHandler } from "./agent-socket-handlers/agent-maintenance-socket-handler";
+ import { Stack } from "./stack";
+ import { Cron } from "croner";
+ import gracefulShutdown from "http-graceful-shutdown";
+@@ -75,6 +76,7 @@ export class DockgeServer {
+     agentSocketHandlerList : AgentSocketHandler[] = [
+         new DockerSocketHandler(),
+         new TerminalSocketHandler(),
++        new AgentMaintenanceSocketHandler(),
+     ];
+ 
+     /**
+diff --git a/frontend/components.d.ts b/frontend/components.d.ts
+index 05c0495..1729b24 100644
+--- a/frontend/components.d.ts
++++ b/frontend/components.d.ts
+@@ -13,15 +13,21 @@ declare module 'vue' {
+     ArraySelect: typeof import('./src/components/ArraySelect.vue')['default']
+     BDropdown: typeof import('bootstrap-vue-next')['BDropdown']
+     BDropdownItem: typeof import('bootstrap-vue-next')['BDropdownItem']
++    BForm: typeof import('bootstrap-vue-next')['BForm']
++    BFormCheckbox: typeof import('bootstrap-vue-next')['BFormCheckbox']
+     BModal: typeof import('bootstrap-vue-next')['BModal']
++    BTab: typeof import('bootstrap-vue-next')['BTab']
++    BTabs: typeof import('bootstrap-vue-next')['BTabs']
+     Confirm: typeof import('./src/components/Confirm.vue')['default']
+     Container: typeof import('./src/components/Container.vue')['default']
++    DockerArtefact: typeof import('./src/components/DockerArtefact.vue')['default']
+     DockerStat: typeof import('./src/components/DockerStat.vue')['default']
+     General: typeof import('./src/components/settings/General.vue')['default']
+     GlobalEnv: typeof import('./src/components/settings/GlobalEnv.vue')['default']
+     HiddenInput: typeof import('./src/components/HiddenInput.vue')['default']
+     Login: typeof import('./src/components/Login.vue')['default']
+     NetworkInput: typeof import('./src/components/NetworkInput.vue')['default']
++    ProgressTerminal: typeof import('./src/components/ProgressTerminal.vue')['default']
+     RouterLink: typeof import('vue-router')['RouterLink']
+     RouterView: typeof import('vue-router')['RouterView']
+     Security: typeof import('./src/components/settings/Security.vue')['default']
+diff --git a/frontend/src/components/DockerArtefact.vue b/frontend/src/components/DockerArtefact.vue
+new file mode 100644
+index 0000000..0d0ea31
+--- /dev/null
++++ b/frontend/src/components/DockerArtefact.vue
+@@ -0,0 +1,232 @@
++<template>
++    <div class="btn-group mb-3" role="group">
++        <button v-if="artefact.actions.includes(DockerArtefactAction.Prune)" class="btn btn-primary btn-sm me-1" data-toggle="tooltip" :title="$t('tooltipOpenPruneDialog')" :disabled="processing" @click="showPruneDialog = true">
++            <font-awesome-icon icon="wrench" class="me-1" />
++            <span>{{ $t("prune") }}</span>
++        </button>
++
++        <button v-if="artefact.actions.includes(DockerArtefactAction.Pull)" class="btn btn-secondary btn-sm me-1" data-toggle="tooltip" :title="$t('tooltipPullSelected')" :disabled="processing || selectedItems.length === 0" @click="checkOpenPullDialog">
++            <font-awesome-icon icon="cloud-arrow-down" class="me-1" />
++            <span>{{ $t("pull") }}</span>
++        </button>
++
++        <button v-if="artefact.actions.includes(DockerArtefactAction.Remove)" class="btn btn-danger btn-sm" data-toggle="tooltip" :title="$t('tooltipDeleteSelected')" :disabled="processing || selectedItems.length === 0" @click="showDeleteDialog = true">
++            <font-awesome-icon icon="trash" class="me-1" />
++            <span>{{ $t("delete") }}</span>
++        </button>
++    </div>
++
++    <!-- Prune dialog -->
++    <BModal v-model="showPruneDialog" :title="$t('prune') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('prune')" okVariant="danger" @ok="executeAction(pruneDialogData.all ? DockerArtefactAction.PruneAll : DockerArtefactAction.Prune)" @show="resetPruneDialog" @hidden="resetPruneDialog">
++        <p class="mb-3" v-html="$t(artefact.name + 'PruneMsg')"></p>
++
++        <BForm v-if="artefact.actions.includes(DockerArtefactAction.PruneAll)">
++            <BFormCheckbox v-model="pruneDialogData.all" switch>{{ $t(artefact.name + "PruneAll") }}</BFormCheckbox>
++        </BForm>
++    </BModal>
++
++    <!-- Pull dialog -->
++    <BModal v-model="showPullDialog" :title="$t('pull') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('pull')" okVariant="primary" :ok-disabled="selectedItems.length === 0" @ok="executeAction(DockerArtefactAction.Pull)">
++        <p v-html="$t('imagePullInfoMsg')"></p>
++        <p v-html="pullDialogData.danglingImagesList"></p>
++    </BModal>
++
++    <!-- Delete dialog -->
++    <BModal v-model="showDeleteDialog" :title="$t('delete') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('delete')" okVariant="danger" @ok="executeAction(DockerArtefactAction.Remove)">
++        <p class="mb-3" v-html="$t(artefact.name + 'DeleteMsg')"></p>
++    </BModal>
++
++    <div v-if="fetchingData">{{ $t("fetchingData") }}</div>
++
++    <div v-else class="table-responsive">
++        <table class="table table-dark ">
++            <thead>
++                <tr>
++                    <th scope="col"></th>
++                    <th v-for="(title, index) in dataHeader" :key="index" class="sortable-header" scope="col" @click="toggleSort(title)">{{ title }} <span class="sort-symbol">{{ sortCol === title ? (sortDir === "UP" ? "&nbsp;▲" : "&nbsp;▼" ) : "&nbsp;&nbsp;" }}</span></th>
++                    <th scope="col"></th>
++                </tr>
++            </thead>
++            <tbody>
++                <tr v-for="(item, itemIndex) in tableData" :key="itemIndex">
++                    <td scope="col">
++                        <input
++                            v-model="selectedItems"
++                            class="form-check-input"
++                            type="checkbox"
++                            :value="item.id"
++                        />
++                    </td>
++                    <td v-for="(value, valueIndex) in item.values" :key="valueIndex" class="artefact-cell">{{ getValue(value) }}</td>
++                    <td>
++                        <span v-if="item.dangling" class="badge bg-info">{{ item.danglingLabel }}</span>
++                    </td>
++                </tr>
++            </tbody>
++        </table>
++    </div>
++</template>
++
++<script lang="ts" setup>
++import { computed, ref, Ref, reactive, onMounted, inject, getCurrentInstance } from "vue";
++import { DockerArtefactAction, DockerArtefactData, DockerArtefactInfo, DockerArtefactItem } from "../../../common/types";
++
++// eslint-disable-next-line @typescript-eslint/no-explicit-any
++const root = getCurrentInstance()?.proxy?.$root as any;
++
++const props = defineProps<{
++  endpoint: string;
++  artefact: DockerArtefactInfo;
++}>();
++
++// Injected from parent
++const processing = inject("processing") as Ref<boolean>;
++const startAction = inject("startAction") as () => void;
++const stopAction = inject("stopAction") as () => void;
++
++// Local types
++type SortDir = "UP" | "DOWN";
++
++// Local reactive state
++const fetchingData = ref(true);
++const data = ref<DockerArtefactData>({
++    info: props.artefact,
++    data: []
++});
++const dataMap = reactive(new Map<string, DockerArtefactItem>());
++const tableData = ref<DockerArtefactItem[]>([]);
++const sortCol = ref<string>("");
++const sortDir = ref<SortDir>("UP");
++const selectedItems = ref<string[]>([]);
++const showPruneDialog = ref(false);
++const pruneDialogData = reactive({ all: false });
++const showPullDialog = ref(false);
++const pullDialogData = reactive({ danglingImagesList: "" });
++const showDeleteDialog = ref(false);
++
++// Computed
++const dataHeader = computed(() => data.value.data.length > 0 ? Object.keys(data.value.data[0].values) : []);
++
++// Methods
++function loadData() {
++    console.debug("Loading data for " + props.artefact.name);
++
++    fetchingData.value = true;
++
++    root.emitAgent(props.endpoint, "getDockerArtefactData", props.artefact.name, (res) => {
++        fetchingData.value = false;
++
++        data.value = res.data;
++        dataMap.clear();
++        for (const item of data.value.data) {
++            dataMap.set(item.id, item);
++        }
++
++        if (sortCol.value === "") {
++            sortCol.value = dataHeader.value.length > 0 ? dataHeader.value[0] : "";
++        }
++        sortData();
++
++        selectedItems.value = [];
++    });
++}
++
++function sortData() {
++    if (sortCol.value !== "") {
++        tableData.value = Array.from(dataMap.values()).sort((i1, i2) => {
++            let v1 = getValue(i1.values[sortCol.value], true);
++            let v2 = getValue(i2.values[sortCol.value], true);
++
++            const upSort = sortDir.value === "UP";
++
++            if (typeof (v1) === "string") {
++                v2 = v2 as string;
++                return (upSort ? v1 : v2).localeCompare(upSort ? v2 : v1);
++            } else {
++                v2 = v2 as number;
++                return (upSort ? v1 : v2) - (upSort ? v2 : v1);
++            }
++        });
++    }
++}
++
++function toggleSort(col: string) {
++    if (sortCol.value != col) {
++        sortCol.value = col;
++        sortDir.value = "UP";
++    } else {
++        sortDir.value = (sortDir.value === "UP" ? "DOWN" : "UP");
++    }
++
++    sortData();
++}
++
++function getValue(value: string | [string, string] | [string, number], sortValue = false): string | number {
++    if (Array.isArray(value)) {
++        return sortValue ? value[1] : value[0];
++    } else {
++        return value;
++    }
++}
++
++function resetPruneDialog() {
++    pruneDialogData.all = false;
++}
++
++function checkOpenPullDialog() {
++    const selectedDanglingImages = selectedItems.value
++        .filter(id => dataMap.get(id)!.excludedActions.includes(DockerArtefactAction.Pull));
++
++    if (selectedDanglingImages.length > 0) {
++        const danglingImageList = [ "<ul>" ];
++        for (const id of selectedDanglingImages) {
++            danglingImageList.push(`<li>${dataMap.get(id)!.actionIds.pull}</li>`);
++        }
++        danglingImageList.push("</ul>");
++        pullDialogData.danglingImagesList = danglingImageList.join("");
++
++        selectedItems.value = selectedItems.value.filter(id => !selectedDanglingImages.includes(id));
++
++        showPullDialog.value = true;
++    } else {
++        executeAction(DockerArtefactAction.Pull);
++    }
++}
++
++function executeAction(action: DockerArtefactAction) {
++    startAction?.();
++
++    root.emitAgent(props.endpoint, "executeDockerArtefactAction", props.artefact.name, action, selectedItems.value.map(id => dataMap.get(id)?.actionIds[action] ?? id), (res) => {
++        stopAction?.();
++        root.toastRes(res);
++        loadData();
++    });
++}
++
++// Lifecycle
++onMounted(() => {
++    loadData();
++});
++
++</script>
++
++<style lang="scss" scoped>
++    @import "../styles/vars.scss";
++
++    .artefact-cell {
++        max-width: 200px;
++        white-space: nowrap;
++        overflow: hidden;
++        text-overflow: ellipsis;
++    }
++
++    .sortable-header {
++        cursor: pointer;
++    }
++
++    .sort-symbol {
++        color: $dark-font-color;
++        font-family: monospace;
++    }
++
++</style>
+diff --git a/frontend/src/components/ProgressTerminal.vue b/frontend/src/components/ProgressTerminal.vue
+new file mode 100644
+index 0000000..91d145a
+--- /dev/null
++++ b/frontend/src/components/ProgressTerminal.vue
+@@ -0,0 +1,92 @@
++<template>
++    <div class="shadow-box">
++        <div class="progress-terminal-header mb-1" @click="showProgressTerminal = !showProgressTerminal">
++            <font-awesome-icon :icon="showProgressTerminal ? 'chevron-down' : 'chevron-right'" class="me-2" />
++            {{ $t("terminal") }}
++        </div>
++        <transition name="slide-fade" appear>
++            <Terminal
++                v-show="showProgressTerminal"
++                ref="progressTerminal"
++                class="terminal"
++                :name="name"
++                :endpoint="endpoint"
++                :rows="rows"
++            ></Terminal>
++        </transition>
++    </div>
++</template>
++
++<script lang="ts">
++import { defineComponent } from "vue";
++import { PROGRESS_TERMINAL_ROWS } from "../../../common/util-common";
++import Terminal from "./Terminal.vue";
++
++let autoHideTerminalTimout: ReturnType<typeof setTimeout> | undefined = undefined;
++
++export default defineComponent({
++    components: {
++        Terminal
++    },
++
++    props: {
++        name: {
++            type: String,
++            required: true
++        },
++        endpoint: {
++            type: String,
++            required: true
++        },
++        rows: {
++            type: Number,
++            default: PROGRESS_TERMINAL_ROWS
++        },
++        autoHideTimeout: {
++            type: Number,
++            default: 10000
++        }
++    },
++
++    data() {
++        return {
++            showProgressTerminal: false,
++        };
++    },
++
++    computed: {
++        progressTerminal(): typeof Terminal {
++            return this.$refs.progressTerminal as typeof Terminal;
++        }
++    },
++
++    mounted() {
++    },
++
++    methods: {
++        show() {
++            this.progressTerminal.bind(this.endpoint, this.name);
++            this.progressTerminal.clearTerminal();
++            this.showProgressTerminal = true;
++            clearTimeout(autoHideTerminalTimout);
++        },
++
++        hideWithTimeout() {
++            if (this.autoHideTimeout > 0) {
++                autoHideTerminalTimout = setTimeout(async () => {
++                    this.showProgressTerminal = false;
++                }, this.autoHideTimeout);
++            }
++        },
++    }
++});
++</script>
++
++<style lang="scss" scoped>
++    @import "../styles/vars.scss";
++
++    .progress-terminal-header {
++        cursor: pointer;
++    }
++
++</style>
+diff --git a/frontend/src/icon.ts b/frontend/src/icon.ts
+index 6fabc8a..d99ce8e 100644
+--- a/frontend/src/icon.ts
++++ b/frontend/src/icon.ts
+@@ -58,6 +58,7 @@ import {
+     faChevronCircleRight,
+     faChevronCircleDown,
+     faCodeCompare,
++    faChevronRight,
+ } from "@fortawesome/free-solid-svg-icons";
+ 
+ library.add(
+@@ -117,6 +118,7 @@ library.add(
+     faChevronCircleRight,
+     faChevronCircleDown,
+     faCodeCompare,
++    faChevronRight,
+ );
+ 
+ export { FontAwesomeIcon };
+diff --git a/frontend/src/lang/en.json b/frontend/src/lang/en.json
+index d2288ef..c19b531 100644
+--- a/frontend/src/lang/en.json
++++ b/frontend/src/lang/en.json
+@@ -167,5 +167,30 @@
+     "versionReverted": "Compose file reverted to previous version.",
+     "scanAll": "Scan All",
+     "driftCheckDescription": "Scan all stacks across all agents to detect image tag drift between compose files and running containers.",
+-    "agentRequiresUpdate": "Agent requires v1.7.0+ for Compose Drift Check"
++    "agentRequiresUpdate": "Agent requires v1.7.0+ for Compose Drift Check",
++    "image": "Image | Images",
++    "maintenance": "Maintenance",
++    "tooltipAgentMaintenance": "Open agent maintenance",
++    "tooltipOpenPruneDialog": "Open prune dialog",
++    "tooltipDeleteSelected": "Deletes the selected items",
++    "tooltipPullSelected": "Updates the selected items",
++    "prune": "Prune",
++    "pull": "Update",
++    "delete": "Delete",
++    "systemPrune": "System Prune",
++    "systemPruneMsg": "WARNING! This will remove:<br>  - all stopped containers<br>  - all networks not used by at least one container<br>  - all dangling images<br>  - unused build cache",
++    "systemPruneAll": "Also all images without at least one container associated to them and all build cache",
++    "systemPruneVolumes": "Also all anonymous volumes not used by at least one container",
++    "containerPruneMsg": "WARNING! This will remove all stopped containers.",
++    "imagePruneMsg": "This will remove all dangling images.",
++    "imagePruneAll": "Also all images without at least one container associated to them",
++    "networkPruneMsg": "This will remove all custom networks not used by at least one container.",
++    "volumePruneMsg": "This will remove anonymous local volumes not used by at least one container.",
++    "volumePruneAll": "Also all local volumes not used by at least one container",
++    "containerDeleteMsg": "The selected containers will be deleted.",
++    "imageDeleteMsg": "The selected images will be deleted.",
++    "imagePullInfoMsg": "The following dangling images cannot be updated:",
++    "networkDeleteMsg": "The selected networks will be deleted.",
++    "volumeDeleteMsg": "The selected volumes will be deleted.",
++    "fetchingData": "Fetching data ..."
+ }
+diff --git a/frontend/src/pages/AgentMaintenance.vue b/frontend/src/pages/AgentMaintenance.vue
+new file mode 100644
+index 0000000..1f446d4
+--- /dev/null
++++ b/frontend/src/pages/AgentMaintenance.vue
+@@ -0,0 +1,186 @@
++<template>
++    <transition name="slide-fade" appear>
++        <div>
++            <div>
++                <h1 class="mb-3">{{ name }}</h1>
++            </div>
++
++            <button class="btn btn-primary mb-3" data-toggle="tooltip" :title="$t('tooltipOpenPruneDialog')" :disabled="processing" @click="showSystemPruneDialog = true">
++                <font-awesome-icon icon="wrench" class="me-1" />
++                <span>{{ $t("systemPrune") }}</span>
++            </button>
++
++            <!-- System prune form -->
++            <BModal id="systemPrune" v-model="showSystemPruneDialog" :title="$t('systemPrune')" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('prune')" okVariant="danger" @ok="systemPrune" @show="resetSystemPrune" @hidden="resetSystemPrune">
++                <p class="mb-3" v-html="$t('systemPruneMsg')"></p>
++
++                <form @submit.prevent>
++                    <div class="form-check form-switch">
++                        <input
++                            id="systemPruneAll"
++                            v-model="systemPruneData.all"
++                            class="form-check-input"
++                            type="checkbox"
++                        />
++                        <label class="form-check-label" for="systemPruneAll">
++                            {{ $t("systemPruneAll") }}
++                        </label>
++                    </div>
++
++                    <div class="form-check form-switch mt-3">
++                        <input
++                            id="systemPruneVolumes"
++                            v-model="systemPruneData.volumes"
++                            class="form-check-input"
++                            type="checkbox"
++                        />
++                        <label class="form-check-label" for="systemPruneVolumes">
++                            {{ $t("systemPruneVolumes") }}
++                        </label>
++                    </div>
++                </form>
++            </BModal>
++
++            <ProgressTerminal ref="progressTerminal" :name="terminalName" :endpoint="endpoint" />
++
++            <div class="shadow-box mt-3">
++                <b-tabs v-model="activeArtefactIndex" nav-item-class="artefact-tab me-2" active-nav-item-class="active-artefact-tab" pills>
++                    <template v-for="info in Object.values(DockerArtefactInfos)" :key="info.name">
++                        <b-tab active lazy :title="$tc(info.name, 2)">
++                            <div class="mt-4">
++                                <DockerArtefact :ref="info.name" :endpoint="endpoint" :artefact="info" />
++                            </div>
++                        </b-tab>
++                    </template>
++                </b-tabs>
++            </div>
++        </div>
++    </transition>
++</template>
++
++<script lang="ts">
++import { defineComponent, getCurrentInstance, ref, reactive, computed, onMounted, provide } from "vue";
++import { useRoute } from "vue-router";
++import { getAgentMaintenanceTerminalName } from "../../../common/util-common";
++import { DockerArtefactInfos } from "../../../common/types";
++import DockerArtefact from "../components/DockerArtefact.vue";
++import ProgressTerminal from "../components/ProgressTerminal.vue";
++
++export default defineComponent({
++    components: {
++        DockerArtefact,
++        ProgressTerminal
++    },
++
++    setup() {
++        const route = useRoute();
++
++        const proxy = getCurrentInstance()?.proxy;
++
++        // eslint-disable-next-line @typescript-eslint/no-explicit-any
++        const root = proxy?.$root as any;
++        // eslint-disable-next-line @typescript-eslint/no-explicit-any
++        const refs = proxy?.$refs as any;
++
++        // State
++        const processing = ref(false);
++        const showSystemPruneDialog = ref(false);
++        const activeArtefactIndex = ref(0);
++        const systemPruneData = reactive({
++            all: false,
++            volumes: false
++        });
++
++        const progressTerminal = ref<InstanceType<typeof ProgressTerminal>>();
++
++        // Computed
++        const endpoint = computed(() => route.params.endpoint as string || "");
++        const name = computed(() => root?.getAgentName(endpoint.value));
++        const terminalName = computed(() => getAgentMaintenanceTerminalName(endpoint.value));
++
++        // Methods
++        function resetSystemPrune() {
++            systemPruneData.all = false;
++            systemPruneData.volumes = false;
++        }
++
++        function systemPrune() {
++            startAction();
++
++            root.emitAgent(endpoint.value, "dockerSystemPrune", systemPruneData.all, systemPruneData.volumes, (res) => {
++                stopAction();
++                root.toastRes(res);
++                reloadArtefactsData();
++            });
++        }
++
++        function startAction() {
++            processing.value = true;
++            progressTerminal.value?.show();
++        }
++
++        function stopAction() {
++            processing.value = false;
++            progressTerminal.value?.hideWithTimeout();
++        }
++
++        function reloadArtefactsData() {
++            for (const artefact of Object.values(DockerArtefactInfos)) {
++                const ref = refs[artefact.name];
++
++                // Check if array
++                const componentInstances = Array.isArray(ref) ? ref : [ ref ];
++
++                for (const comp of componentInstances) {
++                    if (comp && typeof comp.loadData === "function") {
++                        console.debug("Reload " + artefact.name);
++                        comp.loadData();
++                    }
++                }
++            }
++        }
++
++        onMounted(() => {
++        });
++
++        // Provide
++        provide("processing", processing);
++        provide("startAction", startAction);
++        provide("stopAction", stopAction);
++
++        return {
++            DockerArtefactInfos,
++            processing,
++            showSystemPruneDialog,
++            activeArtefactIndex,
++            systemPruneData,
++            endpoint,
++            name,
++            terminalName,
++            progressTerminal,
++            resetSystemPrune,
++            systemPrune,
++            startPruneAction: startAction,
++            stopPruneAction: stopAction,
++            reloadArtefactsData
++        };
++    }
++});
++</script>
++
++<style scoped lang="scss">
++@import "../styles/vars.scss";
++
++:deep(.artefact-tab:hover) {
++    background: $dark-header-active-bg;
++}
++
++:deep(.active-artefact-tab) {
++    background: $dark-header-active-bg !important;
++    color: $dark-font-color !important;
++    border-bottom: 4px solid $primary;
++    border-bottom-left-radius: 0 !important;
++    border-bottom-right-radius: 0 !important;
++}
++
++</style>
+diff --git a/frontend/src/pages/DashboardHome.vue b/frontend/src/pages/DashboardHome.vue
+index 21a17a1..98002b5 100644
+--- a/frontend/src/pages/DashboardHome.vue
++++ b/frontend/src/pages/DashboardHome.vue
+@@ -122,6 +122,11 @@
+                                 <span v-else class="badge bg-secondary me-2">{{ $t($root.agentStatusList[endpoint]) }}</span>
+                             </template>
+ 
++                            <!-- Maintenance -->
++                            <router-link v-if="$root.agentStatusList[endpoint] === 'online'" class="btn btn-sm btn-normal me-2" data-toggle="tooltip" :title="$t('tooltipAgentMaintenance')" :to="endpoint !== '' ? `/agent/${endpoint}` : '/agent'">
++                                <font-awesome-icon icon="wrench" class="me-1" />{{ $t("maintenance") }}
++                            </router-link>
++
+                             <!-- Agent Display Name -->
+                             <template v-if="$root.agentStatusList[endpoint]">
+                                 <span v-if="endpoint === '' && agentItem.name === ''" class="badge bg-secondary me-2">Current</span>
+diff --git a/frontend/src/router.ts b/frontend/src/router.ts
+index 6b94642..4d456d8 100644
+--- a/frontend/src/router.ts
++++ b/frontend/src/router.ts
+@@ -4,6 +4,7 @@ import Layout from "./layouts/Layout.vue";
+ import Setup from "./pages/Setup.vue";
+ import Dashboard from "./pages/Dashboard.vue";
+ import DashboardHome from "./pages/DashboardHome.vue";
++import AgentMaintenance from "./pages/AgentMaintenance.vue";
+ import Console from "./pages/Console.vue";
+ import Compose from "./pages/Compose.vue";
+ import ContainerTerminal from "./pages/ContainerTerminal.vue";
+@@ -32,6 +33,14 @@ const routes = [
+                         path: "/",
+                         component: DashboardHome,
+                         children: [
++                            {
++                                path: "/agent",
++                                component: AgentMaintenance,
++                            },
++                            {
++                                path: "/agent/:endpoint",
++                                component: AgentMaintenance,
++                            },
+                             {
+                                 path: "/compose",
+                                 component: Compose,
+diff --git a/frontend/src/styles/vars.scss b/frontend/src/styles/vars.scss
+index 5595da2..c6110a1 100644
+--- a/frontend/src/styles/vars.scss
++++ b/frontend/src/styles/vars.scss
+@@ -15,6 +15,7 @@ $dark-bg: #0d1117;
+ $dark-bg2: #070a10;
+ $dark-border-color: #1d2634;
+ $dark-header-bg: #161b22;
++$dark-header-active-bg: lighten($dark-header-bg, 8%);
+ 
+ $easing-in: cubic-bezier(0.54, 0.78, 0.55, 0.97);
+ $easing-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+-- 
+2.43.0
+
