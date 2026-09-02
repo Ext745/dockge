@@ -164,6 +164,12 @@ export default {
             }
         },
 
+        clearTerminal() {
+            this.terminal.clear();
+            this.terminalInputBuffer = "";
+            this.cursorPosition = 0;
+        },
+
         removeInput() {
             const textAfterCursorLength = this.terminalInputBuffer.length - this.cursorPosition;
             const spaces = " ".repeat(textAfterCursorLength);
