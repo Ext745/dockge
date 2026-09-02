@@ -4,6 +4,7 @@ import { defineComponent } from "vue";
 import jwtDecode from "jwt-decode";
 import { Terminal } from "@xterm/xterm";
 import { AgentSocket } from "../../../common/agent-socket";
+import { StackFilter, StackStatusInfo } from "../../../common/util-common";
 
 let socket : Socket;
 
@@ -32,6 +33,8 @@ export default defineComponent({
             composeTemplate: "",
 
             stackList: {},
+
+            stackFilter: new StackFilter(),
 
             // All stack list from all agents
             allAgentStackList: {} as Record<string, object>,
@@ -120,6 +123,28 @@ export default defineComponent({
                 window.location.reload();
             }
         },
+
+        // Keep the stack-list filter dropdown's agent/status checkboxes in sync with what's
+        // actually present, so a checkbox never lingers for an agent/status no stack has.
+        completeStackList() {
+            const agents = new Set<string>();
+            const status = new Set<string>();
+
+            for (const stackData of Object.values(this.completeStackList) as { endpoint: string, status: number }[]) {
+                agents.add(stackData.endpoint);
+                status.add(StackStatusInfo.get(stackData.status).label);
+            }
+
+            this.stackFilter.agents.options = Object.fromEntries(
+                [ ...agents ]
+                    .map(a => [ this.endpointDisplayFunction(a), a ])
+                    .sort((a1, a2) => a1[0].localeCompare(a2[0]))
+            );
+
+            this.stackFilter.status.options = Object.fromEntries(
+                StackStatusInfo.ALL.filter(i => status.has(i.label)).map(i => [ i.label, i.label ])
+            );
+        },
     },
     created() {
         this.initSocketIO();
@@ -131,16 +156,23 @@ export default defineComponent({
     methods: {
 
         endpointDisplayFunction(endpoint : string) {
+            // The local/master instance - no agentList entry lookup needed (and, before this
+            // fix, unreachable below since the loop only ever matched a truthy endpoint).
+            if (!endpoint) {
+                return this.$t("currentEndpoint");
+            }
+
             for (const [ k, v ] of Object.entries(this.$data.agentList)) {
-                if (endpoint) {
-                    if (endpoint === v["endpoint"] && v["name"] !== "") {
-                        return v["name"];
-                    }
-                    if (endpoint === v["endpoint"] && v["name"] === "" ) {
-                        return endpoint;
-                    }
+                if (endpoint === v["endpoint"] && v["name"] !== "") {
+                    return v["name"];
+                }
+                if (endpoint === v["endpoint"] && v["name"] === "" ) {
+                    return endpoint;
                 }
             }
+
+            // Not found in agentList - fall back to the raw endpoint rather than undefined.
+            return endpoint;
         },
 
         /**

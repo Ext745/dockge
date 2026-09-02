@@ -27,12 +27,37 @@
                         <font-awesome-icon icon="code-compare" class="me-1" />
                         {{ $t("driftCheck") }}
                     </router-link>
-                </div>
-            </div>
 
-            <!-- TODO -->
-            <div v-if="false" class="header-filter">
-                <!--<StackListFilter :filterState="filterState" @update-filter="updateFilter" />-->
+                    <!-- Category filter dropdown -->
+                    <BDropdown variant="link" end auto-close="outside" menu-class="filter-dropdown" toggle-class="filter-icon-container" no-caret>
+                        <template #button-content>
+                            <font-awesome-icon class="filter-icon" :class="{ 'filter-icon-active': stackFilter.isFilterSelected() }" icon="filter" />
+                        </template>
+
+                        <BDropdownItemButton :disabled="!stackFilter.isFilterSelected()" button-class="filter-dropdown-clear" @click="stackFilter.clear()">
+                            <font-awesome-icon class="ms-1 me-2" icon="times" />{{ $t("clearFilter") }}
+                        </BDropdownItemButton>
+
+                        <BDropdownDivider></BDropdownDivider>
+
+                        <template v-for="category in stackFilter.categories" :key="category.label">
+                            <BDropdownGroup v-if="category.hasOptions()" :header="$tc(category.label, 2)">
+                                <li v-for="(value, key) in category.options" :key="value" class="filter-option">
+                                    <div class="form-check">
+                                        <input
+                                            :id="`stack-filter-${category.label}-${value}`"
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            :checked="category.selected.has(value)"
+                                            @change="category.toggleSelected(value)"
+                                        />
+                                        <label class="form-check-label" :for="`stack-filter-${category.label}-${value}`">{{ $t(key) }}</label>
+                                    </div>
+                                </li>
+                            </BDropdownGroup>
+                        </template>
+                    </BDropdown>
+                </div>
             </div>
 
             <!-- TODO: Selection Controls -->
@@ -86,7 +111,7 @@
 <script>
 import Confirm from "../components/Confirm.vue";
 import StackListItem from "../components/StackListItem.vue";
-import { CREATED_FILE, CREATED_STACK, EXITED, RUNNING, UNKNOWN } from "../../../common/util-common";
+import { CREATED_FILE, CREATED_STACK, EXITED, RUNNING, StackStatusInfo, UNKNOWN } from "../../../common/util-common";
 
 export default {
     components: {
@@ -107,11 +132,6 @@ export default {
             disableSelectAllWatcher: false,
             selectedStacks: {},
             windowTop: 0,
-            filterState: {
-                status: null,
-                active: null,
-                tags: null,
-            },
             closedAgents: new Map(),
         };
     },
@@ -135,6 +155,10 @@ export default {
 
         },
 
+        stackFilter() {
+            return this.$root.stackFilter;
+        },
+
         /**
          * Returns a sorted list of stacks based on the applied filters and search text.
          * @returns {Array} The sorted list of stacks.
@@ -154,21 +178,19 @@ export default {
                             || tag.value?.toLowerCase().includes(loweredSearchText));
                 }
 
-                // filter by active
-                let activeMatch = true;
-                if (this.filterState.active != null && this.filterState.active.length > 0) {
-                    activeMatch = this.filterState.active.includes(stack.active);
+                // filter by agent
+                let agentMatch = true;
+                if (this.stackFilter.agents.isFilterSelected()) {
+                    agentMatch = this.stackFilter.agents.selected.has(stack.endpoint);
                 }
 
-                // filter by tags
-                let tagsMatch = true;
-                if (this.filterState.tags != null && this.filterState.tags.length > 0) {
-                    tagsMatch = stack.tags.map(tag => tag.tag_id) // convert to array of tag IDs
-                        .filter(stackTagId => this.filterState.tags.includes(stackTagId)) // perform Array Intersaction between filter and stack's tags
-                        .length > 0;
+                // filter by status
+                let statusMatch = true;
+                if (this.stackFilter.status.isFilterSelected()) {
+                    statusMatch = this.stackFilter.status.selected.has(StackStatusInfo.get(stack.status).label);
                 }
 
-                return searchTextMatch && activeMatch && tagsMatch;
+                return searchTextMatch && agentMatch && statusMatch;
             });
 
             result.sort((m1, m2) => {
@@ -253,14 +275,6 @@ export default {
         selectedStackCount() {
             return Object.keys(this.selectedStacks).length;
         },
-
-        /**
-         * Determines if any filters are active.
-         * @returns {boolean} True if any filter is active, false otherwise.
-         */
-        filtersActive() {
-            return this.filterState.status != null || this.filterState.active != null || this.filterState.tags != null || this.searchText !== "";
-        }
     },
     watch: {
         searchText() {
@@ -319,14 +333,6 @@ export default {
          */
         clearSearchText() {
             this.searchText = "";
-        },
-        /**
-         * Update the StackList Filter
-         * @param {object} newFilter Object with new filter
-         * @returns {void}
-         */
-        updateFilter(newFilter) {
-            this.filterState = newFilter;
         },
         /**
          * Deselect a stack
@@ -426,9 +432,62 @@ export default {
     align-items: center;
 }
 
-.header-filter {
+.drift-check-wrapper {
     display: flex;
     align-items: center;
+}
+
+:deep(.filter-icon-container) {
+    text-decoration: none;
+    padding-right: 0;
+}
+
+.filter-icon {
+    padding: 10px;
+    color: $dark-font-color3 !important;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.filter-icon-active {
+    // darthrater78 has no $info variable (hamphh's has one via Bootstrap's SCSS source,
+    // which isn't imported here) - reuse the project's existing accent color instead.
+    color: $primary !important;
+    border: 1px solid $primary;
+    border-radius: 5px;
+}
+
+:deep(.filter-dropdown) {
+    background-color: $dark-bg;
+    border-color: $dark-font-color3;
+    color: $dark-font-color;
+
+    .dropdown-header {
+        color: $dark-font-color;
+        font-weight: bolder;
+    }
+
+    .form-check-input {
+        border-color: $dark-font-color3;
+    }
+}
+
+:deep(.filter-dropdown-clear) {
+    color: $dark-font-color;
+
+    &:disabled {
+        color: $dark-font-color3;
+    }
+
+    &:hover {
+        background-color: $dark-header-active-bg;
+        color: $dark-font-color;
+    }
+}
+
+.filter-option {
+    padding: 0.25rem 1rem;
+    list-style: none;
 }
 
 @media (max-width: 770px) {
