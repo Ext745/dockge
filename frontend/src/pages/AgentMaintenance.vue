@@ -95,7 +95,15 @@ export default defineComponent({
 
         // Computed
         const endpoint = computed(() => route.params.endpoint as string || "");
-        const name = computed(() => root?.getAgentName(endpoint.value));
+        // Mirrors DashboardHome.vue's getEndpointLabel() - darthrater78 has no
+        // $root.getAgentName() (that's hamphh's API); this is the equivalent here.
+        const name = computed(() => {
+            if (!endpoint.value) {
+                return proxy?.$t("currentEndpoint");
+            }
+            const agent = root?.agentList?.[endpoint.value];
+            return (agent && agent.name) ? agent.name : endpoint.value;
+        });
         const terminalName = computed(() => getAgentMaintenanceTerminalName(endpoint.value));
 
         // Methods
