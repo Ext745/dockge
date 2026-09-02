@@ -44,8 +44,8 @@ always returned `undefined` for the master endpoint; and a self-introduced `isAd
 ordering bug in the auto-collapse work that broke new-stack deployment, caught by the same live
 test before it shipped. All fixed in the commit that found them.
 
-**Deferred by choice, not urgency:** ~99 pre-existing lint errors (see "Deferred by choice"
-below) — cosmetic, unrelated to this port, auto-fixable whenever convenient.
+The ~99 pre-existing lint errors originally tracked as "deferred by choice" below are now also
+cleared (`eslint --fix`, 2026-09-01) — the port has nothing left outstanding at all.
 
 ## Done — live-tested and verified
 - **Agent Maintenance UI** (branch `feat/agent-maintenance`)
@@ -92,8 +92,8 @@ Two `dockge-test:agent-maint` containers (build via `docker build -f docker/Dock
   - Verified: `tsc --noEmit` clean; `eslint` on all touched files clean (zero new issues; the one pre-existing `socket.ts` warning - an unused destructured variable in `endpointDisplayFunction()`'s loop, present before this change too - confirmed via `git stash`).
   - **Live-tested 2026-09-01** with a real Chromium browser (per the new standing rule: browser click-through before deeper logic testing) against the isolated dind-backed master, with a second stack deployed exited on master and a third deployed running on the registered remote agent to get real multi-agent/multi-status coverage: loaded the dashboard, opened the filter dropdown (headers correctly pluralized "Agents"/"Status", options correctly labeled "Current"/"Test Agent"/"active"/"exited"), checked "exited" - list correctly narrowed to just that one stack, dropdown stayed open (`auto-close="outside"` confirmed); unchecked it - list restored; checked "Test Agent" - list correctly narrowed to just the agent's stack; checked "active" - filter icon got its active-highlight style, list narrowed to the two running stacks; clicked "Clear filter" - list and icon both reset. Zero console errors throughout.
 
-## Deferred by choice
-- **~99 pre-existing lint errors** (94 `object-property-newline` + 5 `curly`, concentrated in `api-router.ts`, `compose-version-sync.ts`, `docker-socket-handler.ts`, `two-fa.ts`, `version-sync-history-service.ts`). Purely cosmetic, 100% auto-fixable, zero semantic risk. Do via `eslint --fix` + diff review as its own isolated commit once the live test is done.
+- **Lint cleanup** — ran `eslint --fix` on the 5 files carrying the ~99 pre-existing errors (94 `object-property-newline` + 5 `curly`, concentrated in `api-router.ts`, `compose-version-sync.ts`, `docker-socket-handler.ts`, `two-fa.ts`, `version-sync-history-service.ts`). Reviewed the full diff by hand: purely mechanical (one property per line, array-bracket-spacing, curly braces around single-statement `if` bodies) - no logic, values, or control flow changed anywhere.
+  - Verified: `tsc --noEmit` clean project-wide. `eslint` problem count drops from 213 (99 errors, 114 warnings) to 90 (0 errors, 90 warnings) - zero errors remain anywhere in the project. The 90 remaining warnings are all pre-existing and unrelated (camelcase console-style constants, a few unused vars, `v-html` XSS advisories, scattered `array-bracket-spacing` warnings in files outside this pass's scope), confirmed unchanged via `git stash`.
 
 ## Confirmed real gaps — still to port
 None. Every tracked item has either shipped (see "Done" above) or been investigated and closed as a non-issue / not applicable (see "Investigated and closed" below).
@@ -111,9 +111,11 @@ None. Every tracked item has either shipped (see "Done" above) or been investiga
 - **YAML validation improvements** — checked 2026-09-01. Compared `yamlCodeChange()` in both `Compose.vue`s: identical debounced-error pattern (parse, clear the error immediately on success, delay showing a *new* error by a `setTimeout` to avoid flicker while typing). Pre-save checks in `deployStack()` are also equivalent — both reject an empty `services:` block with the same toast; darthrater78 additionally checks `typeof services !== "object"`, which hamphh doesn't. darthrater78 also validates the env-substituted YAML inline (`envsubstJSONConfig`), which hamphh's `Compose.vue` doesn't do (deferred into its heavier `ComposeDocument` abstraction instead). No schema-validation library (ajv, etc.) in either backend. Closed as a non-issue: darthrater78's validation is at parity with hamphh's, arguably slightly ahead.
 - **"Delete stack" button moved to submenu** — checked and fixed 2026-09-01. Confirmed darthrater78's `Compose.vue` genuinely still had it in "the old spot": a standalone, always-visible `btn-danger` button next to the action bar, while hamphh moves it into the same kebab `BDropdown` that already holds "Down Stack" (styling it distinctly via `link-class="compose-dropdown-item-danger"` so it still reads as destructive inside the menu). This was a real, trivial gap, so made the move rather than just closing it: added a second `BDropdownItem` to the existing (already-present, already used for `downStack`) `BDropdown` with `variant="danger"` - the installed `bootstrap-vue-next` (`~0.14.10`) renders that as `class="dropdown-item text-danger"` automatically, achieving the same "still reads as destructive" result as hamphh's custom `link-class` without needing one. Removed the standalone button. Kept its existing `v-if="!isEditMode"` and `:disabled="processing"` guards unchanged on the new dropdown item. Verified: `tsc --noEmit` clean, `eslint` shows only the one pre-existing `array-bracket-spacing` warning (confirmed via `git stash`). Live-tested in a real browser: standalone red button confirmed gone, kebab menu now shows "Stop & Inactive" and "Delete" together with "Delete" rendered in red (`text-danger`), click-through works, zero console errors.
 
-## Suggested order (live testing is done, green light given)
+## Suggested order (all items complete)
 1. ~~Fullscreen toggle on primary editor~~ — done, see above
 2. ~~Stack-terminal auto-collapse / auto-close~~ — done, see above
 3. ~~Advanced category filter dropdown~~ — done, see above
 4. ~~Resolve remaining "unverified" items~~ — done, see above (button tooltips, YAML validation, delete-button placement)
-5. Lint cleanup (`eslint --fix`, isolated commit) — **only remaining item, entirely optional/cosmetic**
+5. ~~Lint cleanup~~ — done, see above
+
+Nothing left. Port complete.

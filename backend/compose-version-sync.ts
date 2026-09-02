@@ -33,20 +33,24 @@ interface RunningContainerInfo {
 
 export function parseImageRef(image: string): ImageRef {
     if (!image) {
-        return { repository: "", tag: "" };
+        return { repository: "",
+            tag: "" };
     }
 
     const atIndex = image.indexOf("@");
     if (atIndex > 0) {
-        return { repository: image.substring(0, atIndex), tag: image.substring(atIndex) };
+        return { repository: image.substring(0, atIndex),
+            tag: image.substring(atIndex) };
     }
 
     const lastColon = image.lastIndexOf(":");
     if (lastColon > 0 && !image.substring(lastColon).includes("/")) {
-        return { repository: image.substring(0, lastColon), tag: image.substring(lastColon + 1) };
+        return { repository: image.substring(0, lastColon),
+            tag: image.substring(lastColon + 1) };
     }
 
-    return { repository: image, tag: "latest" };
+    return { repository: image,
+        tag: "latest" };
 }
 
 export function normalizeImageName(name: string): string {
@@ -134,7 +138,10 @@ async function getRunningContainers(): Promise<Map<string, RunningContainerInfo>
         }
 
         const key = `${project}::${service}`;
-        containers.set(key, { project, service, imageTags, configImage });
+        containers.set(key, { project,
+            service,
+            imageTags,
+            configImage });
     }
 
     return containers;
@@ -146,7 +153,7 @@ function getComposeServices(composePath: string): Map<string, string> {
         const content = fs.readFileSync(composePath, "utf-8");
         const doc = yaml.parse(content);
         if (doc?.services) {
-            for (const [name, svc] of Object.entries(doc.services)) {
+            for (const [ name, svc ] of Object.entries(doc.services)) {
                 const service = svc as Record<string, unknown>;
                 if (service.image && typeof service.image === "string") {
                     services.set(name, service.image);
@@ -210,12 +217,14 @@ export async function scanStack(stacksDir: string, stackName: string): Promise<V
     const composeServices = getComposeServices(composePath);
     const runningContainers = await getRunningContainers();
 
-    for (const [serviceName, composeImage] of composeServices) {
+    for (const [ serviceName, composeImage ] of composeServices) {
         const key = `${stackName}::${serviceName}`;
         const container = runningContainers.get(key);
 
         if (!container) {
-            result.unmatchedServices.push({ stackName, service: serviceName, composeImage });
+            result.unmatchedServices.push({ stackName,
+                service: serviceName,
+                composeImage });
             continue;
         }
 
@@ -223,7 +232,9 @@ export async function scanStack(stacksDir: string, stackName: string): Promise<V
         const runningImage = bestTag || container.configImage;
 
         if (imageRefsMatch(composeImage, runningImage)) {
-            result.matched.push({ stackName, service: serviceName, image: composeImage });
+            result.matched.push({ stackName,
+                service: serviceName,
+                image: composeImage });
         } else {
             result.mismatches.push({
                 stackName,
@@ -299,5 +310,6 @@ export function syncComposeFile(composePath: string, serviceName: string, newIma
 
     fs.writeFileSync(composePath, doc.toString(), "utf-8");
 
-    return { oldImage, success: true };
+    return { oldImage,
+        success: true };
 }
