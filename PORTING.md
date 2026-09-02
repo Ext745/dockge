@@ -1,5 +1,52 @@
 # hamphh/dockge 1.2 → darthrater78/dockge: porting tracker
 
+## Port complete (2026-09-01)
+Every feature/gap identified from hamphh/dockge 1.2 has been shipped, or investigated and
+closed as a non-issue. Nothing is left open.
+
+**Shipped** (5 features, each live-tested against real Docker daemons, not just socket-protocol
+scripts — see "Done" below for full detail on each):
+1. Agent Maintenance UI (container/image/network/volume listing, prune/remove/pull, live
+   terminal streaming, multi-agent endpoint switching)
+2. Ignore-service-status toggle (`dockge.status.ignore=true` label)
+3. Fullscreen toggle on the primary compose.yaml editor
+4. Stack-terminal auto-collapse / auto-close 10s after an action
+5. Advanced category filter dropdown on the stack list (agent + status)
+6. "Delete stack" button moved into the kebab submenu (small, but a genuine leftover gap)
+
+**Explicitly excluded, on purpose:**
+- **Image update notifications via skopeo** — darthrater78 already has its own, more advanced
+  version-sync system (`compose-version-sync.ts`, `version-sync-history-service.ts`,
+  `Updates.vue`, "Update All", plus the "Compose Drift Check" scan feature). hamphh's
+  skopeo-based update checker would be a strict downgrade to bring in alongside it, not an
+  addition — so it was never ported. The one visible trace of this decision: the filter
+  dropdown's `attributes` category (hamphh's single `imageUpdatesAvailable` option) is present
+  in the ported `StackFilter` class shape for API compatibility, but deliberately left
+  unpopulated, so it never renders in the UI.
+- **A dedicated mobile UI** (hamphh's `/stacks` route + `MobileStackList.vue`) — investigated
+  and closed as out of scope: darthrater78's stack list is already fully usable on a phone via
+  plain CSS grid reflow (verified at a real 390px viewport), just without a purpose-built mobile
+  nav. No phone/tablet usage to justify the dedicated UX work; revisit only if that changes.
+- **Button tooltips** — hamphh's broader tooltip markup doesn't actually function in hamphh
+  either (both forks are missing the Bootstrap 5 JS init `data-toggle`/`data-bs-toggle`
+  mismatch), so there was nothing working to port.
+- **YAML validation improvements** — darthrater78's validation was already at parity with
+  hamphh's (same debounced-error pattern, equivalent pre-save checks), confirmed by direct
+  comparison rather than assumed.
+
+**Bugs found along the way** (all pre-existing in darthrater78, surfaced by live-testing in a
+real browser rather than trusting socket-protocol-only tests — see the standing rule in
+CLAUDE.md): two dangling-image detection bugs in Agent Maintenance's `getImageData()`; a missing
+`Terminal.vue.clearTerminal()` method that silently broke every `ProgressTerminal.show()` call
+(Agent Maintenance *and* Compose page); a broken `$root.getAgentName()` reference that made the
+entire Agent Maintenance page fail to mount; an `endpointDisplayFunction("")` dead branch that
+always returned `undefined` for the master endpoint; and a self-introduced `isAdd`/`submitted`
+ordering bug in the auto-collapse work that broke new-stack deployment, caught by the same live
+test before it shipped. All fixed in the commit that found them.
+
+**Deferred by choice, not urgency:** ~99 pre-existing lint errors (see "Deferred by choice"
+below) — cosmetic, unrelated to this port, auto-fixable whenever convenient.
+
 ## Done — live-tested and verified
 - **Agent Maintenance UI** (branch `feat/agent-maintenance`)
   - Patches: `0001-Port-Agent-Maintenance-UI-from-hamphh-dockge-1.2.patch`, `0002-Fix-pre-existing-object-property-newline-lint-errors.patch`
@@ -49,7 +96,7 @@ Two `dockge-test:agent-maint` containers (build via `docker build -f docker/Dock
 - **~99 pre-existing lint errors** (94 `object-property-newline` + 5 `curly`, concentrated in `api-router.ts`, `compose-version-sync.ts`, `docker-socket-handler.ts`, `two-fa.ts`, `version-sync-history-service.ts`). Purely cosmetic, 100% auto-fixable, zero semantic risk. Do via `eslint --fix` + diff review as its own isolated commit once the live test is done.
 
 ## Confirmed real gaps — still to port
-None currently open — see "Unverified" below for what's left to check.
+None. Every tracked item has either shipped (see "Done" above) or been investigated and closed as a non-issue / not applicable (see "Investigated and closed" below).
 
 ## Confirmed NOT needed (already present or superseded in darthrater78)
 - Basic stack list search/filter — present
@@ -60,15 +107,13 @@ None currently open — see "Unverified" below for what's left to check.
 
 ## Investigated and closed — no action needed
 - **Mobile layout** — checked 2026-09-01. Confirmed `$root.isMobile` is never defined anywhere in darthrater78 (not in `main.ts`'s root component, `App.vue`, or the `socket`/`lang`/`theme` mixins; no `resize`/`matchMedia`/`innerWidth` listener sets it), so every `v-if="$root.isMobile"`/`v-if="!$root.isMobile"` guard in `Layout.vue`/`Dashboard.vue`/`Settings.vue` is a dead conditional carried over from hamphh, always resolving as if mobile were `false`. Live-tested at a 390×844 (iPhone-width) viewport against a real running instance: the stack list is **not** hidden or inaccessible — Bootstrap's existing `col-12 col-md-4 col-xl-3` grid collapses it to a full-width single column above the dashboard summary, fully legible and tappable, no horizontal overflow. The gap vs. hamphh's dedicated `/stacks` + `MobileStackList.vue` is pure polish (a mobile-tailored nav bar instead of the desktop header, stack-list-above-summary page ordering, a mobile-only logout shortcut) — not an access or legibility problem. Closed as out of scope: no phone/tablet usage to justify the dedicated mobile-UX work. Do not revisit without a concrete usage reason — the underlying facts (dead `isMobile` flag, functional CSS-only reflow) won't change on their own.
-
-## Unverified — need to check before deciding whether they're gaps
-- **Button tooltips** — hamphh added tooltips broadly in 1.1 ("most buttons now have tooltips"). Haven't audited darthrater78's coverage to know if this is a real gap or already comparable.
-- **YAML validation improvements** (pre-save validation) — not compared between the two forks.
-- **"Delete stack" button moved to submenu** — cosmetic placement change in hamphh; not checked whether darthrater78 already does this or where its delete button currently lives.
+- **Button tooltips** — checked 2026-09-01. darthrater78 does have less `data-toggle="tooltip"` markup than hamphh (3 files vs. 6). But neither fork's tooltips actually *work*: both use Bootstrap 5.3.x, which requires the `data-bs-toggle` attribute name (not the Bootstrap-4-era `data-toggle` both forks actually use) plus an explicit `new bootstrap.Tooltip(el)` JS init that neither `main.ts` nor any mixin performs in either codebase. Confirmed by reading both forks' `main.ts`/`App.vue`/mixins — no tooltip init exists anywhere in either. hamphh's "broader coverage" is equally inert markup, not a working feature to catch up to. Closed as a non-issue: there's nothing to port, since hamphh doesn't have working tooltips either. If real tooltips are ever wanted, that's new work in both forks (wire up Bootstrap's Tooltip JS or switch to bootstrap-vue-next's tooltip directive), not a porting gap.
+- **YAML validation improvements** — checked 2026-09-01. Compared `yamlCodeChange()` in both `Compose.vue`s: identical debounced-error pattern (parse, clear the error immediately on success, delay showing a *new* error by a `setTimeout` to avoid flicker while typing). Pre-save checks in `deployStack()` are also equivalent — both reject an empty `services:` block with the same toast; darthrater78 additionally checks `typeof services !== "object"`, which hamphh doesn't. darthrater78 also validates the env-substituted YAML inline (`envsubstJSONConfig`), which hamphh's `Compose.vue` doesn't do (deferred into its heavier `ComposeDocument` abstraction instead). No schema-validation library (ajv, etc.) in either backend. Closed as a non-issue: darthrater78's validation is at parity with hamphh's, arguably slightly ahead.
+- **"Delete stack" button moved to submenu** — checked and fixed 2026-09-01. Confirmed darthrater78's `Compose.vue` genuinely still had it in "the old spot": a standalone, always-visible `btn-danger` button next to the action bar, while hamphh moves it into the same kebab `BDropdown` that already holds "Down Stack" (styling it distinctly via `link-class="compose-dropdown-item-danger"` so it still reads as destructive inside the menu). This was a real, trivial gap, so made the move rather than just closing it: added a second `BDropdownItem` to the existing (already-present, already used for `downStack`) `BDropdown` with `variant="danger"` - the installed `bootstrap-vue-next` (`~0.14.10`) renders that as `class="dropdown-item text-danger"` automatically, achieving the same "still reads as destructive" result as hamphh's custom `link-class` without needing one. Removed the standalone button. Kept its existing `v-if="!isEditMode"` and `:disabled="processing"` guards unchanged on the new dropdown item. Verified: `tsc --noEmit` clean, `eslint` shows only the one pre-existing `array-bracket-spacing` warning (confirmed via `git stash`). Live-tested in a real browser: standalone red button confirmed gone, kebab menu now shows "Stop & Inactive" and "Delete" together with "Delete" rendered in red (`text-danger`), click-through works, zero console errors.
 
 ## Suggested order (live testing is done, green light given)
 1. ~~Fullscreen toggle on primary editor~~ — done, see above
 2. ~~Stack-terminal auto-collapse / auto-close~~ — done, see above
 3. ~~Advanced category filter dropdown~~ — done, see above
-4. Resolve the remaining "unverified" items above with quick checks (likely small or non-issues) — **up next**
-5. Lint cleanup (`eslint --fix`, isolated commit)
+4. ~~Resolve remaining "unverified" items~~ — done, see above (button tooltips, YAML validation, delete-button placement)
+5. Lint cleanup (`eslint --fix`, isolated commit) — **only remaining item, entirely optional/cosmetic**
