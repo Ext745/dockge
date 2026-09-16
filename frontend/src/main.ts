@@ -54,12 +54,26 @@ function rootApp() {
                 loggedIn: false,
                 allowLoginDialog: false,
                 username: null,
+                isMobile: window.innerWidth <= 768,
             };
         },
         computed: {
 
         },
+        mounted() {
+            window.addEventListener("resize", this.handleWindowResize);
+        },
+        beforeUnmount() {
+            window.removeEventListener("resize", this.handleWindowResize);
+        },
         methods: {
+            /**
+             * Recompute isMobile based on the current viewport width.
+             * @returns {void}
+             */
+            handleWindowResize() {
+                this.isMobile = window.innerWidth <= 768;
+            },
 
             /**
              * Show success or error toast dependant on response status code
