@@ -10,3 +10,4 @@ tmp
 # Git only
 frontend-dist
 
+.claude/dev-skills-gates.md
