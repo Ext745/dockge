@@ -1,7 +1,16 @@
 <template>
     <div class="container-fluid">
+        <button
+            v-if="$root.isMobile"
+            class="btn btn-normal w-100 mb-2 d-flex justify-content-between align-items-center"
+            @click="showMobileStackList = !showMobileStackList"
+        >
+            <span><font-awesome-icon icon="server" class="me-2" />{{ $t("stackList") }}</span>
+            <font-awesome-icon :icon="showMobileStackList ? 'chevron-up' : 'chevron-down'" />
+        </button>
+
         <div class="row">
-            <div v-if="!$root.isMobile" class="col-12 col-md-4 col-xl-3">
+            <div v-if="!$root.isMobile || showMobileStackList" class="col-12 col-md-4 col-xl-3">
                 <div>
                     <router-link to="/compose" class="btn btn-primary mb-3"><font-awesome-icon icon="plus" /> {{ $t("compose") }}</router-link>
                 </div>
@@ -26,7 +35,8 @@ export default {
     },
     data() {
         return {
-            height: 0
+            height: 0,
+            showMobileStackList: false,
         };
     },
     mounted() {

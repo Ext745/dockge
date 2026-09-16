@@ -11,6 +11,8 @@
     "console": "Console",
     "registry": "Registry",
     "compose": "Compose",
+    "stackList": "Stacks",
+    "resizeTerminal": "Resize terminal (drag, or use arrow keys)",
     "addFirstStackMsg": "Compose your first stack!",
     "stackName": "Stack Name",
     "deployStack": "Deploy",
