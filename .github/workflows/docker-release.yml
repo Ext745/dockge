@@ -89,4 +89,5 @@ jobs:
       - name: Verify image was pushed
         run: |
           set -euo pipefail
-          docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/dockge:${VERSION}"
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker buildx imagetools inspect "ghcr.io/${OWNER_LC}/dockge:${VERSION}"
