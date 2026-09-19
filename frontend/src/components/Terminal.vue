@@ -383,6 +383,49 @@ export default {
                 console.error("Failed to copy to clipboard:", error);
             }
         },
+
+        /**
+         * Read the terminal's full scrollback (not just what's currently
+         * visible in the viewport) as plain text. Rows that are just the
+         * soft-wrapped continuation of a long line (line.isWrapped) are
+         * re-joined so wrapping at the terminal's column width doesn't
+         * fragment the original output into extra lines.
+         * @returns {string} Terminal content, one line per logical line
+         */
+        getPlainTextContent() {
+            const buffer = this.terminal.buffer.active;
+            const lines = [];
+            for (let i = 0; i < buffer.length; i++) {
+                const line = buffer.getLine(i);
+                if (!line) {
+                    continue;
+                }
+                const text = line.translateToString(true);
+                if (line.isWrapped && lines.length > 0) {
+                    lines[lines.length - 1] += text;
+                } else {
+                    lines.push(text);
+                }
+            }
+            return lines.join("\n");
+        },
+
+        /**
+         * Save the terminal's full output as a local .log file.
+         */
+        downloadLog() {
+            const content = this.getPlainTextContent();
+            const blob = new Blob([ content ], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${this.name || "terminal"}-${timestamp}.log`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
     }
 };
 </script>

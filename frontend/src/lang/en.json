@@ -149,6 +149,7 @@
     "Downed": "Downed",
     "Switch to sh": "Switch to sh",
     "terminal": "Terminal",
+    "downloadLog": "Download Log",
     "CurrentHostname": "(Unset: Follow current hostname)",
     "New Container Name...": "New Container Name...",
     "Network name...": "Network name...",

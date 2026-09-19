@@ -61,6 +61,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - ⛶ (Ext745/dockge 🆕) Fullscreen toggle for the compose.yaml editor
 - 🏷️ (Ext745/dockge 🆕) Advanced stack-list filtering by agent and status
 - 🔀 (Ext745/dockge 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
+- 💾 (Ext745/dockge 🆕) Download Log — save a stack's terminal output to a local file
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 

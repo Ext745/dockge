@@ -204,7 +204,13 @@
 
                     <!-- Combined Terminal Output -->
                     <div v-show="!isEditMode">
-                        <h4 class="mb-3">{{ $t("terminal") }}</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0">{{ $t("terminal") }}</h4>
+                            <button class="btn btn-normal btn-sm" @click="$refs.combinedTerminal.downloadLog()">
+                                <font-awesome-icon icon="download" class="me-1" />
+                                {{ $t("downloadLog") }}
+                            </button>
+                        </div>
                         <Terminal
                             ref="combinedTerminal"
                             class="mb-3 terminal"
