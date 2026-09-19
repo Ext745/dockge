@@ -9,6 +9,7 @@
                 v-show="showProgressTerminal"
                 ref="progressTerminal"
                 class="terminal"
+                mode="progress"
                 :name="name"
                 :endpoint="endpoint"
                 :rows="rows"

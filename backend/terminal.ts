@@ -229,7 +229,10 @@ export class Terminal {
                 return;
             }
 
-            let terminal = new Terminal(server, terminalName, file, args, cwd);
+            // Use an InteractiveTerminal so the user can answer interactive
+            // prompts (e.g. docker compose "[y/N]" confirmations) or press
+            // Ctrl+C from the progress terminal instead of getting stuck.
+            let terminal = new InteractiveTerminal(server, terminalName, file, args, cwd);
             terminal.rows = PROGRESS_TERMINAL_ROWS;
 
             if (socket) {

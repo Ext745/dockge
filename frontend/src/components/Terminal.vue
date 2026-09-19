@@ -59,7 +59,10 @@ export default {
         // Mode
         // displayOnly: Only display terminal output
         // mainTerminal: Allow input limited commands and output
-        // interactive: Free input and output
+        // interactive: Free input and output (creates a container exec terminal)
+        // progress: Display output for an existing server-side operation,
+        //           but still forward keystrokes so the user can answer
+        //           interactive prompts (e.g. "[y/N]") or press Ctrl+C.
         mode: {
             type: String,
             default: "displayOnly",
@@ -93,7 +96,7 @@ export default {
 
         if (this.mode === "mainTerminal") {
             this.mainTerminalConfig();
-        } else if (this.mode === "interactive") {
+        } else if (this.mode === "interactive" || this.mode === "progress") {
             this.interactiveTerminalConfig();
         }
 
@@ -267,7 +270,10 @@ export default {
                 }
 
                 this.$root.emitAgent(this.endpoint, "terminalInput", this.name, e.key, (res) => {
-                    if (!res.ok) {
+                    // In "progress" mode the server-side terminal disappears once
+                    // the operation finishes, so ignore "terminal not found"
+                    // errors that happen when the user keeps typing afterwards.
+                    if (!res.ok && this.mode !== "progress") {
                         this.$root.toastRes(res);
                     }
                 });

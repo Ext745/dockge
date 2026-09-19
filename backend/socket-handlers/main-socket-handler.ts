@@ -214,7 +214,10 @@ export class MainSocketHandler extends SocketHandler {
             const user = await this.login(data.username, data.password);
 
             if (user) {
-                if (user.twofa_status === 0) {
+                // Use an else-if chain so a stray `token` sent alongside a
+                // normal (non-2FA) login can never reach the 2FA branch below,
+                // and so only ONE callback is ever invoked per login.
+                if (user.twofa_status !== 1) {
                     server.afterLogin(socket, user);
 
                     log.info("auth", `Successfully logged in user ${data.username}. IP=${clientIP}`);
@@ -223,18 +226,14 @@ export class MainSocketHandler extends SocketHandler {
                         ok: true,
                         token: User.createJWT(user, server.jwtSecret),
                     });
-                }
-
-                if (user.twofa_status === 1 && !data.token) {
+                } else if (!data.token) {
 
                     log.info("auth", `2FA token required for user ${data.username}. IP=${clientIP}`);
 
                     callback({
                         tokenRequired: true,
                     });
-                }
-
-                if (data.token) {
+                } else {
                     const verify = verifyTwoFAToken(data.token, user.twofa_secret);
 
                     if (user.twofa_last_token !== data.token && verify) {

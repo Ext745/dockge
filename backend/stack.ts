@@ -662,7 +662,27 @@ export class Stack {
         if (exitCode !== 0) {
             throw new Error("Failed to restart, please check the terminal output for more information.");
         }
+
+        // After a successful pull + up, the previous image becomes dangling
+        // (untagged). Remove those leftovers so old versions don't pile up.
+        await this.pruneDanglingImages();
+
         return exitCode;
+    }
+
+    /**
+     * Remove dangling (untagged) images left behind after pulling a newer
+     * version of an image. This only removes images that are no longer
+     * referenced by any tag or container, so running stacks are never affected.
+     */
+    async pruneDanglingImages() {
+        try {
+            await childProcessAsync.spawn("docker", [ "image", "prune", "-f" ], {
+                encoding: "utf-8",
+            });
+        } catch (e) {
+            log.warn("pruneDanglingImages", `Failed to prune dangling images: ${e instanceof Error ? e.message : "unknown error"}`);
+        }
     }
 
     async start(socket: DockgeSocket) {
