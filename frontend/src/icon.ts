@@ -60,6 +60,7 @@ import {
     faCodeCompare,
     faChevronRight,
     faServer,
+    faRightLeft,
 } from "@fortawesome/free-solid-svg-icons";
 
 library.add(
@@ -121,6 +122,7 @@ library.add(
     faCodeCompare,
     faChevronRight,
     faServer,
+    faRightLeft,
 );
 
 export { FontAwesomeIcon };

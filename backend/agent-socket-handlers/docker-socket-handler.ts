@@ -1,10 +1,13 @@
 import { AgentSocketHandler } from "../agent-socket-handler";
 import { DockgeServer } from "../dockge-server";
-import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationError } from "../util-server";
+import { callbackError, callbackResult, checkLogin, DockgeSocket, fileExists, ValidationError } from "../util-server";
 import { Stack } from "../stack";
 import { AgentSocket } from "../../common/agent-socket";
 import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
 import { VersionSyncHistoryService } from "../version-sync-history-service";
+import { promises as fsAsync } from "fs";
+import path from "path";
+import AdmZip from "adm-zip";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -37,6 +40,90 @@ export class DockerSocketHandler extends AgentSocketHandler {
                     msgi18n: true,
                 }, callback);
                 server.sendStackList();
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Export a Dockge-managed stack folder as a zip (base64) so it can be
+        // transferred to another node.
+        agentSocket.on("exportStack", async (stackName : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof(stackName) !== "string") {
+                    throw new ValidationError("Stack name must be a string");
+                }
+
+                const stack = await Stack.getStack(server, stackName);
+                if (!stack.isManagedByDockge) {
+                    throw new ValidationError("Only Dockge-managed stacks can be transferred.");
+                }
+
+                const zip = new AdmZip();
+                zip.addLocalFolder(stack.fullPath);
+
+                callbackResult({
+                    ok: true,
+                    stackName: stack.name,
+                    contentBase64: zip.toBuffer().toString("base64"),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Import a stack zip (base64) onto this node, optionally deploying it.
+        // Used as the receiving end of a node-to-node transfer.
+        agentSocket.on("importStack", async (stackName : unknown, contentBase64 : unknown, deploy : unknown, callback) => {
+            try {
+                checkLogin(socket);
+
+                if (typeof(stackName) !== "string" || typeof(contentBase64) !== "string") {
+                    throw new ValidationError("Invalid import request");
+                }
+                if (!/^[a-z0-9][a-z0-9_-]*$/.test(stackName)) {
+                    throw new ValidationError("Invalid stack name");
+                }
+
+                const targetDir = path.join(server.stacksDir, stackName);
+                if (await fileExists(targetDir)) {
+                    throw new ValidationError("A stack with this name already exists on the target node.");
+                }
+
+                const zip = new AdmZip(Buffer.from(contentBase64, "base64"));
+                const root = path.resolve(targetDir);
+                await fsAsync.mkdir(root, { recursive: true });
+
+                // Extract each entry manually with zip-slip protection so a
+                // malicious archive cannot write outside the stack folder.
+                for (const entry of zip.getEntries()) {
+                    const entryPath = path.resolve(root, entry.entryName);
+                    if (entryPath !== root && !entryPath.startsWith(root + path.sep)) {
+                        throw new ValidationError(`Unsafe path in archive: ${entry.entryName}`);
+                    }
+
+                    if (entry.isDirectory) {
+                        await fsAsync.mkdir(entryPath, { recursive: true });
+                    } else {
+                        await fsAsync.mkdir(path.dirname(entryPath), { recursive: true });
+                        await fsAsync.writeFile(entryPath, entry.getData());
+                    }
+                }
+
+                server.sendStackList();
+
+                if (Boolean(deploy)) {
+                    const stack = await Stack.getStack(server, stackName);
+                    await stack.deploy(socket);
+                    server.sendStackList();
+                    stack.joinCombinedTerminal(socket);
+                }
+
+                callbackResult({
+                    ok: true,
+                    msg: "Stack imported.",
+                    stackName,
+                }, callback);
             } catch (e) {
                 callbackError(e, callback);
             }
