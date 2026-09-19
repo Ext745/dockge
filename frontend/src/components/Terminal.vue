@@ -373,15 +373,57 @@ export default {
         },
 
         /**
-         * Copy text to clipboard
+         * Copy text to clipboard. navigator.clipboard only exists in a
+         * secure context (HTTPS or localhost) - a Dockge instance reached
+         * over plain HTTP on a LAN IP (the common self-hosted case) has no
+         * Clipboard API at all, so fall back to the legacy
+         * document.execCommand("copy") trick, which still works over HTTP.
          */
         async copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                console.debug("Text copied to clipboard:", text);
-            } catch (error) {
-                console.error("Failed to copy to clipboard:", error);
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    console.debug("Text copied to clipboard:", text);
+                    return;
+                } catch (error) {
+                    console.error("navigator.clipboard.writeText failed, falling back:", error);
+                }
             }
+
+            if (!this.legacyCopyToClipboard(text)) {
+                console.error("Failed to copy to clipboard: no working method available (requires HTTPS or localhost for the modern Clipboard API)");
+                this.$root.toastError(this.$t("clipboardCopyFailed"));
+            }
+        },
+
+        /**
+         * Fallback copy method for non-secure contexts. Returns true on
+         * success.
+         * @param {string} text Text to copy
+         * @returns {boolean} Whether the copy succeeded
+         */
+        legacyCopyToClipboard(text) {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            // Keep it out of the visible layout/flow without display:none,
+            // which some browsers refuse to select() text from.
+            textarea.style.position = "fixed";
+            textarea.style.top = "0";
+            textarea.style.left = "0";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            let success = false;
+            try {
+                success = document.execCommand("copy");
+            } catch (error) {
+                console.error("document.execCommand('copy') failed:", error);
+            }
+
+            document.body.removeChild(textarea);
+            return success;
         },
 
         /**

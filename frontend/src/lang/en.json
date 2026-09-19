@@ -35,6 +35,7 @@
     "selectNode": "Select a node...",
     "transferInProgress": "Transferring stack to the target node...",
     "transferSourceRemoveFailed": "Deployed on target, but failed to remove the source stack. Please remove it manually.",
+    "clipboardCopyFailed": "Could not copy to clipboard.",
     "transferDone": "Stack transferred successfully.",
     "transferVolumeWarning": "This stack uses named volume(s): {0}. Transfer only moves the stack's compose/env files - it does NOT copy volume data. The target node will start with empty volume(s) of the same name, and the original data will be left behind on this node.",
     "transferVolumeAck": "I understand the volume data will not be transferred and will remain on this node.",
