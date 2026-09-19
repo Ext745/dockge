@@ -94,20 +94,33 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 const root = path.resolve(targetDir);
                 await fsAsync.mkdir(root, { recursive: true });
 
-                // Extract each entry manually with zip-slip protection so a
-                // malicious archive cannot write outside the stack folder.
-                for (const entry of zip.getEntries()) {
-                    const entryPath = path.resolve(root, entry.entryName);
-                    if (entryPath !== root && !entryPath.startsWith(root + path.sep)) {
-                        throw new ValidationError(`Unsafe path in archive: ${entry.entryName}`);
-                    }
+                try {
+                    // Extract each entry manually with zip-slip protection so
+                    // a malicious archive cannot write outside the stack
+                    // folder.
+                    for (const entry of zip.getEntries()) {
+                        const entryPath = path.resolve(root, entry.entryName);
+                        if (entryPath !== root && !entryPath.startsWith(root + path.sep)) {
+                            throw new ValidationError(`Unsafe path in archive: ${entry.entryName}`);
+                        }
 
-                    if (entry.isDirectory) {
-                        await fsAsync.mkdir(entryPath, { recursive: true });
-                    } else {
-                        await fsAsync.mkdir(path.dirname(entryPath), { recursive: true });
-                        await fsAsync.writeFile(entryPath, entry.getData());
+                        if (entry.isDirectory) {
+                            await fsAsync.mkdir(entryPath, { recursive: true });
+                        } else {
+                            await fsAsync.mkdir(path.dirname(entryPath), { recursive: true });
+                            await fsAsync.writeFile(entryPath, entry.getData());
+                        }
                     }
+                } catch (extractError) {
+                    // A rejected (e.g. zip-slip) or otherwise failed
+                    // extraction can leave a partial folder behind - remove
+                    // it so it doesn't block a retry of this import via the
+                    // "already exists on target node" check above.
+                    await fsAsync.rm(root, {
+                        recursive: true,
+                        force: true,
+                    });
+                    throw extractError;
                 }
 
                 server.sendStackList();
