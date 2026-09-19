@@ -30,10 +30,13 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Stack-terminal auto-collapse/auto-close** | The Compose page's progress terminal now opens on action and auto-hides ~10s after completion, matching the Agent Maintenance terminal's behavior |
 | **Advanced category filter** | Filter the stack list by agent and status from a dropdown |
 | **Delete-stack relocation** | Moved into the kebab (⋮) submenu, matching the rest of the per-stack destructive actions |
+| **Node-to-node stack transfer** | Zip a stack, send it to another connected agent, deploy it there, then remove it from the source — moves a stack between hosts from the kebab menu. Ported from [NekoSuneProjectsForks/dockge](https://github.com/NekoSuneProjectsForks/dockge), with its RBAC-dependent access checks (a role system this fork doesn't have) dropped down to this fork's actual `checkLogin`-only auth model |
+| **Interactive progress terminal** | The Compose/Agent Maintenance progress terminal now forwards keystrokes, so `docker compose` `[y/N]` prompts and Ctrl+C work instead of hanging forever. Also from NekoSuneProjectsForks/dockge |
+| **Auto-prune dangling images** | `Stack.update()` now prunes dangling images after a successful pull+up, so old layers don't pile up on every update |
 
-Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, and a dead branch in the endpoint-display helper. See `PORTING.md` and `dockge-port-tracking.md` in this repo for the full write-up, live-test methodology, and the bugs found.
+Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). See `PORTING.md` and `dockge-port-tracking.md` in this repo for the full write-up, live-test methodology, and the bugs found.
 
-**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78's stack list already reflows usably on phone-width viewports via CSS grid).
+**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78's stack list already reflows usably on phone-width viewports via CSS grid). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
 This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.1.0** (port-conflict-detection badges, resizable terminal panel, mobile navigation fix, CVE dependency overrides).
 
@@ -57,6 +60,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🙈 (Ext745/dockge 🆕) Ignore-service-status toggle — exclude specific services from a stack's aggregate status badge
 - ⛶ (Ext745/dockge 🆕) Fullscreen toggle for the compose.yaml editor
 - 🏷️ (Ext745/dockge 🆕) Advanced stack-list filtering by agent and status
+- 🔀 (Ext745/dockge 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
