@@ -1,6 +1,6 @@
 services:
   dockge:
-    image: ghcr.io/darthrater78/dockge:latest
+    image: ghcr.io/ext745/dockge:latest
     restart: unless-stopped
     ports:
       # Host Port : Container Port

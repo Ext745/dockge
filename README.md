@@ -6,7 +6,7 @@
 
 A fancy, easy-to-use and reactive self-hosted docker compose.yaml stack-oriented manager.
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/darthrater78/dockge?logo=github&style=flat)](https://github.com/darthrater78/dockge) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/darthrater78/dockge?label=release)](https://github.com/darthrater78/dockge/releases) [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/darthrater78/dockge/master?logo=github)](https://github.com/darthrater78/dockge/commits/master/)
+[![GitHub Repo stars](https://img.shields.io/github/stars/Ext745/dockge?logo=github&style=flat)](https://github.com/Ext745/dockge) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Ext745/dockge?label=release)](https://github.com/Ext745/dockge/releases) [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Ext745/dockge/master?logo=github)](https://github.com/Ext745/dockge/commits/master/)
 
 <img src="https://github.com/louislam/dockge/assets/1336778/26a583e1-ecb1-4a8d-aedf-76157d714ad7" width="900" alt="" />
 
@@ -119,6 +119,25 @@ The REST API framework (v1.6.0) was ported from finder39's Dockge fork ("Dockge 
 **Upstream — [Louis Lam (louislam)](https://github.com/louislam):**
 Dockge itself is Louis Lam's project. This fork is built on top of the [original Dockge](https://github.com/louislam/dockge) at v1.4.2, which includes the core compose manager, interactive terminal, multi-agent support, and the reactive real-time UI.
 
+### This fork — [Ext745/dockge](https://github.com/Ext745/dockge)
+
+This repository is a further fork of [darthrater78/dockge](https://github.com/darthrater78/dockge) (everything above this section). On top of that base, [Claude Code](https://claude.ai/code) ported the following features from [hamphh/dockge 1.2](https://github.com/hamphh/dockge), a separate community fork, then closed out every remaining gap between the two:
+
+| What was ported/added | Detail |
+|---|---|
+| **Agent Maintenance UI** | Container/image/network/volume listing per Docker agent, prune/prune-all/remove, image pull, live terminal streaming of Docker CLI output, multi-agent endpoint switching |
+| **Ignore-service-status toggle** | `dockge.status.ignore=true` compose label excludes a service from a stack's aggregate running/exited status, on both the REST API and the dashboard's live status badge |
+| **Fullscreen compose editor toggle** | Expand the primary `compose.yaml` editor (not just the override editor) into a fullscreen modal, synced via the same `v-model` |
+| **Stack-terminal auto-collapse/auto-close** | The Compose page's progress terminal now opens on action and auto-hides ~10s after completion, matching the Agent Maintenance terminal's behavior |
+| **Advanced category filter** | Filter the stack list by agent and status from a dropdown |
+| **Delete-stack relocation** | Moved into the kebab (⋮) submenu, matching the rest of the per-stack destructive actions |
+
+Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, and a dead branch in the endpoint-display helper. See `PORTING.md` and `dockge-port-tracking.md` in this repo for the full write-up, live-test methodology, and the bugs found.
+
+**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78's stack list already reflows usably on phone-width viewports via CSS grid).
+
+This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.1.0** (port-conflict-detection badges, resizable terminal panel, mobile navigation fix, CVE dependency overrides).
+
 ---
 
 ## ⭐ Features
@@ -135,6 +154,10 @@ Dockge itself is Louis Lam's project. This fork is built on top of the [original
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
 - 🔄 (1.7.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files
 - 🔑 (1.9.0 🆕) Two-Factor Authentication (TOTP) — protect your account with app-based 2FA
+- 🐳 (Ext745/dockge 🆕) Agent Maintenance UI — manage containers, images, networks, and volumes per agent, with live terminal output
+- 🙈 (Ext745/dockge 🆕) Ignore-service-status toggle — exclude specific services from a stack's aggregate status badge
+- ⛶ (Ext745/dockge 🆕) Fullscreen toggle for the compose.yaml editor
+- 🏷️ (Ext745/dockge 🆕) Advanced stack-list filtering by agent and status
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -171,7 +194,7 @@ mkdir -p /opt/stacks /opt/dockge
 cd /opt/dockge
 
 # Download the compose.yaml
-curl https://raw.githubusercontent.com/darthrater78/dockge/master/compose.yaml --output compose.yaml
+curl https://raw.githubusercontent.com/Ext745/dockge/master/compose.yaml --output compose.yaml
 
 # Start the server
 docker compose up -d
@@ -214,7 +237,7 @@ compose:
 ```
 services:
   dockge:
-    image: ghcr.io/darthrater78/dockge:latest
+    image: ghcr.io/ext745/dockge:latest
     restart: unless-stopped
     ports:
       # Host Port:Container Port
@@ -531,17 +554,17 @@ If you love this project, please consider giving it a ⭐.
 ## 🗣️ Community and Contribution
 
 ### Bug Report
-https://github.com/darthrater78/dockge/issues
+https://github.com/Ext745/dockge/issues
 
 ### Ask for Help / Discussions
-https://github.com/darthrater78/dockge/discussions
+https://github.com/Ext745/dockge/discussions
 
 ### Translation
-If you want to translate Dockge into your language, please read [Translation Guide](https://github.com/darthrater78/dockge/blob/master/frontend/src/lang/README.md)
+If you want to translate Dockge into your language, please read [Translation Guide](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md)
 
 ### Create a Pull Request
 
-Be sure to read the [guide](https://github.com/darthrater78/dockge/blob/master/CONTRIBUTING.md), as we don't accept all types of pull requests and don't want to waste your time.
+Be sure to read the [guide](https://github.com/Ext745/dockge/blob/master/CONTRIBUTING.md), as we don't accept all types of pull requests and don't want to waste your time.
 
 ## FAQ
 

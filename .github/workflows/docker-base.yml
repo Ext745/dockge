@@ -75,4 +75,4 @@ jobs:
           file: docker/Base.Dockerfile
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: ghcr.io/darthrater78/dockge:base
+          tags: ghcr.io/ext745/dockge:base
