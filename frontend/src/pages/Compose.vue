@@ -960,10 +960,11 @@ export default {
         },
 
         /**
-         * Move this stack to another node:
-         *   1. Export (zip) the stack folder from the source node.
-         *   2. Import (unzip) it on the target node and deploy it.
-         *   3. Remove the stack from the source node.
+         * Move this stack to another node. The export -> import+deploy ->
+         * delete-source sequence runs entirely on the backend (a single
+         * "transferStack" call) rather than being chained here step-by-step,
+         * so the transfer still finishes even if this browser tab closes or
+         * loses connection partway through.
          * @returns {void}
          */
         confirmTransfer() {
@@ -976,43 +977,27 @@ export default {
             }
 
             this.transferring = true;
-            this.transferStatus = this.$t("transferExporting");
+            this.transferStatus = this.$t("transferInProgress");
 
-            this.$root.emitAgent(source, "exportStack", stackName, (exportRes) => {
-                if (!exportRes.ok) {
-                    this.transferring = false;
-                    this.$root.toastRes(exportRes);
+            this.$root.getSocket().emit("transferStack", stackName, source, target, (res) => {
+                this.transferring = false;
+                this.showTransferDialog = false;
+
+                if (!res.ok) {
+                    this.$root.toastRes(res);
                     return;
                 }
 
-                this.transferStatus = this.$t("transferImporting");
+                if (res.sourceRemoveFailed) {
+                    this.$root.toastError(this.$t("transferSourceRemoveFailed"));
+                } else {
+                    this.$root.toastSuccess(this.$t("transferDone"));
+                }
 
-                this.$root.emitAgent(target, "importStack", stackName, exportRes.contentBase64, true, (importRes) => {
-                    if (!importRes.ok) {
-                        this.transferring = false;
-                        this.$root.toastRes(importRes);
-                        return;
-                    }
-
-                    this.transferStatus = this.$t("transferRemovingSource");
-
-                    this.$root.emitAgent(source, "deleteStack", stackName, (deleteRes) => {
-                        this.transferring = false;
-                        this.showTransferDialog = false;
-
-                        if (!deleteRes.ok) {
-                            // Import already succeeded; warn but don't treat as full failure.
-                            this.$root.toastError(this.$t("transferSourceRemoveFailed"));
-                        } else {
-                            this.$root.toastSuccess(this.$t("transferDone"));
-                        }
-
-                        // Navigate to the stack on its new node.
-                        this.submitted = true;
-                        const newUrl = target ? `/compose/${stackName}/${target}` : `/compose/${stackName}`;
-                        this.$router.push(newUrl);
-                    });
-                });
+                // Navigate to the stack on its new node.
+                this.submitted = true;
+                const newUrl = target ? `/compose/${stackName}/${target}` : `/compose/${stackName}`;
+                this.$router.push(newUrl);
             });
         },
 
