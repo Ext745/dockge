@@ -16,7 +16,7 @@
                 <span class="fs-4 title">Dockge</span>
             </router-link>
 
-            <a v-if="hasNewVersion" target="_blank" href="https://github.com/Ext745/dockge/releases/tag/v2.1.0" class="btn btn-warning me-3">
+            <a v-if="hasNewVersion" target="_blank" href="https://github.com/Ext745/dockge/releases/tag/v2.2.0" class="btn btn-warning me-3">
                 <font-awesome-icon icon="arrow-alt-circle-up" /> {{ $t("newUpdate") }}
             </a>
 
