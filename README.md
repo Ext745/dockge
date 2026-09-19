@@ -36,6 +36,10 @@ Starting from the upstream [louislam/dockge](https://github.com/louislam/dockge)
 | **v1.8.1** | Dark mode & reliability | Fixed Bootstrap CSS overrides breaking dark mode, added 30s agent timeout for offline nodes |
 | **v1.8.2** | Security patch | Updated ws (HIGH — memory disclosure/DoS), yaml (MODERATE — stack overflow), express (body-parser DoS, ReDoS, qs bypass) |
 | **v1.9.0** | 2FA & encryption | TOTP two-factor authentication, `.env` file persistence on stack save, AES-256-GCM encryption for agent credentials at rest, terminal shell allowlist |
+| **v1.9.1** | Update button restored | Re-added compose pull + up update button and API endpoint removed in 1.8.0, fixed About page links |
+| **v1.9.2** | Fork independence & security | Docker images from fork GHCR registry, dependency security fixes (mysql2, vite), CI cleanup |
+| **v2.0.0** | Port visibility | Configured-port badges and HOST badge in the stack list, cross-stack port conflict detection scoped per agent, dev CI workflow, pre-release Docker tag support |
+| **v2.1.0** | CI hardening, CVE fixes & mobile UX | SHA-pinned GitHub Actions, tag-on-default-branch release verification, Dependabot config; `npm overrides` closing Critical/High CVEs in `tar`/`lodash`/`glob` with no upstream fix available; resizable terminal panel; fixed mobile navigation (`isMobile` was referenced everywhere but never defined, hiding all nav on phones) |
 
 ### How it worked
 
@@ -53,7 +57,7 @@ Starting with later releases, development used a custom **Dev Skills** disciplin
 The gate system works like a pre-flight checklist that cannot be skipped:
 
 ```
-🔢 VERSION  →  🔨 BUILD  →  🔒 SECURITY  →  📄 DOCS  →  📦 RELEASE  →  🚀 PUSH
+🔢 VERSION  →  🔨 BUILD  →  🔒 SECURITY  →  📄 DOCS  →  📦 RELEASE  →  🚀 SHIP
 ```
 
 **What each gate catches:**
@@ -69,7 +73,7 @@ The gate system works like a pre-flight checklist that cannot be skipped:
 
 4. **Docs Gate** — Changelog entries, README updates for new/changed/removed features, and stale documentation are all checked before release.
 
-5. **Release & Push Gates** — Branch protection is enforced (never commit directly to main), release notes must be reviewed and approved, and the final push requires explicit human confirmation.
+5. **Release & Ship Gates** — Branch protection is enforced (never commit directly to main), release notes must be reviewed and approved, and the final ship requires explicit human confirmation.
 
 **How this made the image better:**
 
@@ -120,7 +124,7 @@ Dockge itself is Louis Lam's project. This fork is built on top of the [original
 ## ⭐ Features
 
 - 🧑‍💼 Manage your `compose.yaml` files
-  - Create/Edit/Start/Stop/Restart/Delete
+  - Create/Edit/Start/Stop/Restart/Update/Delete
 - ⌨️ Interactive Editor for `compose.yaml`
 - 🦦 Interactive Web Terminal
 - 🕷️ (1.4.0 🆕) Multiple agents support - You can manage multiple stacks from different Docker hosts in one single interface
@@ -278,6 +282,7 @@ Or set it at runtime through the UI/socket settings. The key is stored as a SHA-
 | `POST` | `/api/stacks/:name/start` | Start a stack |
 | `POST` | `/api/stacks/:name/stop` | Stop a stack |
 | `POST` | `/api/stacks/:name/restart` | Restart a stack |
+| `POST` | `/api/stacks/:name/update` | Pull images and restart a stack |
 | `POST` | `/api/stacks/:name/down` | Tear down a stack |
 | `GET` | `/api/version-sync/scan` | Scan for image tag mismatches between compose files and running containers |
 | `POST` | `/api/version-sync/sync` | Sync a specific service's compose image to the running version |
@@ -346,6 +351,32 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 
 ## Version History
 
+### 1.9.2
+
+**Changed**
+- Docker image references migrated from upstream `louislam/dockge` to fork GHCR registry `ghcr.io/darthrater78/dockge`
+- Error reporting URL updated to fork repository
+- New `docker-base.yml` workflow for building base and healthcheck images independently
+
+**Security**
+- Bumped `mysql2` ~3.12.0 → ~3.23.1 (2 CVEs fixed)
+- Bumped `vite` ~5.4.15 → ~6.4.3 (3 CVEs fixed + transitive clears)
+- Removed unused `@actions/github` devDependency (12 transitive undici vulnerabilities cleared)
+- Reduced Dependabot alerts from 32 → 14
+
+**Fixed**
+- `package.json` indentation for `@codemirror/lang-python` entry
+- Removed duplicate `build:docker-ghcr` script
+
+### 1.9.1
+
+**Restored**
+- Update button — pull images and restart stack via compose (accidentally removed in 1.8.0 alongside the skopeo-based image update detection)
+- `POST /api/stacks/:name/update` API endpoint
+
+**Fixed**
+- About page release link now points to the fork repository
+
 ### 1.9.0
 
 **Added**
@@ -390,7 +421,7 @@ Security patch — updated production dependencies to fix known vulnerabilities:
 - Image update detection feature (skopeo-based registry digest comparison)
 - Auto-update scheduler (cron-based), per-stack auto-update toggle, and "Update All" button
 - `skopeo` from Docker image dependencies
-- All update-related API endpoints (`/api/stacks/:name/update`, `/api/stacks/:name/check-updates`, `/api/update-all`, `/api/scheduler`, `/api/update-history`)
+- All update-related API endpoints (`/api/stacks/:name/check-updates`, `/api/update-all`, `/api/scheduler`, `/api/update-history`); the basic `/api/stacks/:name/update` endpoint was restored in v1.9.1
 - Settings UI for update defaults and scheduler configuration
 
 **Changed**

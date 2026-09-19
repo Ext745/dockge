@@ -1,14 +1,25 @@
 <template>
     <router-link :to="url" :class="{ 'dim' : !stack.isManagedByDockge }" class="item">
         <Uptime :stack="stack" :fixed-width="true" class="me-2" />
-        <div class="title">
-            <span>{{ stackName }}</span>
+        <div class="title-and-ports">
+            <span class="title" :class="{ 'port-conflict': hasPortConflict }">{{ stackName }}</span>
+            <span v-if="displayPorts.length > 0" class="ports">
+                <span class="port-label" :class="{ 'port-conflict': hasPortConflict }">Configured Ports:</span>
+                <span v-for="port in displayPorts" :key="port" class="badge port-badge" :class="{ 'port-conflict-badge': conflictingPorts.has(port) }">{{ port }}</span>
+                <span v-if="overflowCount > 0" class="badge port-badge port-overflow">+{{ overflowCount }}</span>
+            </span>
+            <span v-else-if="isRunning" class="ports">
+                <span class="badge host-badge">HOST</span>
+            </span>
         </div>
     </router-link>
 </template>
 
 <script>
 import Uptime from "./Uptime.vue";
+import { RUNNING } from "../../../common/util-common";
+
+const MAX_VISIBLE_PORTS = 3;
 
 export default {
     components: {
@@ -45,6 +56,11 @@ export default {
             type: Function,
             default: () => {}
         },
+        /** Set of port numbers that conflict across stacks */
+        conflictingPorts: {
+            type: Set,
+            default: () => new Set(),
+        },
     },
     data() {
         return {
@@ -69,6 +85,36 @@ export default {
         },
         stackName() {
             return this.stack.name;
+        },
+        portList() {
+            if (!this.stack.ports || this.stack.ports.length === 0) {
+                return [];
+            }
+            return this.stack.ports.map(raw => {
+                const stripped = raw.split("/")[0];
+                const lastColon = stripped.lastIndexOf(":");
+                if (lastColon === -1) {
+                    return stripped;
+                }
+                const hostPart = stripped.substring(0, lastColon);
+                const ipColon = hostPart.indexOf(":");
+                if (ipColon !== -1) {
+                    return hostPart.substring(ipColon + 1);
+                }
+                return hostPart;
+            });
+        },
+        displayPorts() {
+            return this.portList.slice(0, MAX_VISIBLE_PORTS);
+        },
+        overflowCount() {
+            return Math.max(0, this.portList.length - MAX_VISIBLE_PORTS);
+        },
+        isRunning() {
+            return this.stack?.status === RUNNING;
+        },
+        hasPortConflict() {
+            return this.portList.some(port => this.conflictingPorts.has(port));
         }
     },
     watch: {
@@ -146,13 +192,70 @@ export default {
     &.active {
         background-color: #cdf8f4;
     }
-    .title {
-        margin-top: -4px;
+    .title-and-ports {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        .title {
+            margin-top: -4px;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .ports {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 2px;
+        }
     }
     .endpoint {
         font-size: 12px;
         color: $dark-font-color3;
     }
+}
+
+.port-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: $primary;
+    align-self: center;
+}
+
+.port-badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    background-color: rgba(116, 194, 255, 0.15);
+    color: $primary;
+}
+
+.port-overflow {
+    opacity: 0.7;
+}
+
+.port-conflict {
+    color: $danger !important;
+}
+
+.port-conflict-badge {
+    background-color: rgba($danger, 0.15) !important;
+    color: $danger !important;
+}
+
+.host-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background-color: rgba($warning, 0.15);
+    color: $warning;
 }
 
 .collapsed {

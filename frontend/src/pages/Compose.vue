@@ -36,6 +36,11 @@
                         {{ $t("restartStack") }}
                     </button>
 
+                    <button v-if="!isEditMode" class="btn btn-normal" :disabled="processing" @click="updateStack">
+                        <font-awesome-icon icon="cloud-arrow-down" class="me-1" />
+                        {{ $t("updateStack") }}
+                    </button>
+
                     <button v-if="!isEditMode && active" class="btn btn-normal" :disabled="processing" @click="stopStack">
                         <font-awesome-icon icon="stop" class="me-1" />
                         {{ $t("stopStack") }}
@@ -834,6 +839,15 @@ export default {
 
             this.$root.emitAgent(this.endpoint, "restartStack", this.stack.name, (res) => {
                 this.stopComposeAction();
+                this.$root.toastRes(res);
+            });
+        },
+
+        updateStack() {
+            this.processing = true;
+
+            this.$root.emitAgent(this.endpoint, "updateStack", this.stack.name, (res) => {
+                this.processing = false;
                 this.$root.toastRes(res);
             });
         },

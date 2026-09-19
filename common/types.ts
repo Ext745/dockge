@@ -25,6 +25,7 @@ export type SimpleStackData = {
     isManagedByDockge: boolean,
     composeFileName: string,
     endpoint: string,
+    ports: string[],
 }
 
 export type StackData = SimpleStackData & {

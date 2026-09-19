@@ -3,7 +3,23 @@
         <div v-if="!processing">
             <h1 class="mb-3">{{ $t("console") }}</h1>
 
-            <Terminal v-if="enableConsole" class="terminal" :rows="20" mode="mainTerminal" name="console" :endpoint="endpoint"></Terminal>
+            <div v-if="enableConsole">
+                <div class="terminal-wrapper" :style="{ height: terminalHeight + 'px' }">
+                    <Terminal ref="resizableTerminal" class="terminal" :rows="20" mode="mainTerminal" name="console" :endpoint="endpoint"></Terminal>
+                </div>
+                <div
+                    class="terminal-resize-handle"
+                    role="separator"
+                    aria-orientation="horizontal"
+                    :aria-label="$t('resizeTerminal')"
+                    tabindex="0"
+                    @mousedown="startResize"
+                    @touchstart="startResize"
+                    @keydown="onHandleKeydown"
+                >
+                    <div class="resize-grip"></div>
+                </div>
+            </div>
 
             <div v-else class="alert alert-warning shadow-box" role="alert">
                 <h4 class="alert-heading">{{ $t("Console is not enabled") }}</h4>
@@ -29,9 +45,12 @@
 </template>
 
 <script>
+import resizableTerminal from "../mixins/resizableTerminal";
+
 export default {
     components: {
     },
+    mixins: [ resizableTerminal ],
     data() {
         return {
             processing: true,
@@ -56,7 +75,40 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.terminal-wrapper {
+    min-height: 200px;
+}
+
 .terminal {
-    height: 410px;
+    height: 100%;
+}
+
+.terminal-resize-handle {
+    height: 14px;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+
+    &:focus-visible {
+        outline: 2px solid var(--bs-primary, #5cdd8b);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    .resize-grip {
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background-color: rgba(128, 128, 128, 0.4);
+    }
+
+    &:hover .resize-grip,
+    &:focus .resize-grip {
+        background-color: rgba(128, 128, 128, 0.7);
+    }
 }
 </style>

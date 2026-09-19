@@ -109,7 +109,39 @@ export class Stack {
             composeFileName: this._composeFileName,
             composeOverrideFileName: this._composeOverrideFileName,
             endpoint,
+            ports: this.extractPorts(),
         };
+    }
+
+    protected extractPorts() : string[] {
+        try {
+            const doc = yaml.parse(this.composeYAML);
+            if (!doc || !doc.services) {
+                return [];
+            }
+            const ports : string[] = [];
+            for (const serviceName in doc.services) {
+                const service = doc.services[serviceName];
+                if (Array.isArray(service.ports)) {
+                    for (const port of service.ports) {
+                        if (typeof port === "string") {
+                            ports.push(port);
+                        } else if (typeof port === "number") {
+                            ports.push(String(port));
+                        } else if (port && typeof port === "object" && port.published) {
+                            let entry = `${port.published}:${port.target || port.published}`;
+                            if (port.protocol) {
+                                entry += `/${port.protocol}`;
+                            }
+                            ports.push(entry);
+                        }
+                    }
+                }
+            }
+            return ports;
+        } catch (e) {
+            return [];
+        }
     }
 
     /**
@@ -610,6 +642,27 @@ export class Stack {
             options.splice(1, 0, "--env-file", "../global.env");
         }
         return options;
+    }
+
+    async update(socket: DockgeSocket) {
+        const terminalName = getComposeTerminalName(socket.endpoint, this.name);
+        let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("pull"), this.path);
+        if (exitCode !== 0) {
+            throw new Error("Failed to pull, please check the terminal output for more information.");
+        }
+
+        // If the stack is not running, we don't need to restart it
+        await this.updateStatus();
+        log.debug("update", "Status: " + this.status);
+        if (this.status !== RUNNING) {
+            return exitCode;
+        }
+
+        exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("up", "-d", "--remove-orphans"), this.path);
+        if (exitCode !== 0) {
+            throw new Error("Failed to restart, please check the terminal output for more information.");
+        }
+        return exitCode;
     }
 
     async start(socket: DockgeSocket) {

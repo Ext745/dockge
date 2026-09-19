@@ -16,7 +16,7 @@
                 <span class="fs-4 title">Dockge</span>
             </router-link>
 
-            <a v-if="hasNewVersion" target="_blank" href="https://github.com/louislam/dockge/releases" class="btn btn-warning me-3">
+            <a v-if="hasNewVersion" target="_blank" href="https://github.com/darthrater78/dockge/releases/tag/v2.1.0" class="btn btn-warning me-3">
                 <font-awesome-icon icon="arrow-alt-circle-up" /> {{ $t("newUpdate") }}
             </a>
 
@@ -83,6 +83,29 @@
                 </li>
             </ul>
         </header>
+
+        <!-- Mobile bottom navigation -->
+        <nav v-if="$root.isMobile && $root.loggedIn" class="bottom-nav">
+            <router-link to="/" class="d-inline-block" :class="{ active: $route.path === '/' }">
+                <div><font-awesome-icon icon="home" /></div>
+                {{ $t("home") }}
+            </router-link>
+
+            <router-link to="/console" class="d-inline-block" :class="{ active: $route.path.startsWith('/console') }">
+                <div><font-awesome-icon icon="terminal" /></div>
+                {{ $t("console") }}
+            </router-link>
+
+            <router-link to="/settings/general" class="d-inline-block" :class="{ active: $route.path.includes('settings') }">
+                <div><font-awesome-icon icon="cog" /></div>
+                {{ $t("Settings") }}
+            </router-link>
+
+            <a href="#" class="d-inline-block" @click.prevent="$root.logout">
+                <div><font-awesome-icon icon="sign-out-alt" /></div>
+                {{ $t("Logout") }}
+            </a>
+        </nav>
 
         <main>
             <div v-if="$root.socketIO.connecting" class="container mt-5">
@@ -201,6 +224,10 @@ export default {
 
 main {
     min-height: calc(100vh - 160px);
+}
+
+.mobile main {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
 }
 
 .title {

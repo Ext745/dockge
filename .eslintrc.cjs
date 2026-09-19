@@ -60,7 +60,9 @@ module.exports = {
         "curly": "error",
         "object-curly-spacing": [ "error", "always" ],
         "object-curly-newline": "off",
-        "object-property-newline": "error",
+        "object-property-newline": [ "error", {
+            "allowAllPropertiesOnSameLine": true,
+        }],
         "comma-spacing": "error",
         "brace-style": "error",
         "no-var": "error",

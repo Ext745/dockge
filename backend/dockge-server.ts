@@ -97,7 +97,7 @@ export class DockgeServer {
         // Catch unexpected errors here
         let unexpectedErrorHandler = (error : unknown) => {
             console.trace(error);
-            console.error("If you keep encountering errors, please report to https://github.com/louislam/dockge");
+            console.error("If you keep encountering errors, please report to https://github.com/darthrater78/dockge");
         };
         process.addListener("unhandledRejection", unexpectedErrorHandler);
         process.addListener("uncaughtException", unexpectedErrorHandler);
@@ -169,7 +169,7 @@ export class DockgeServer {
 
         const safeConfig = {
             ...this.config,
-            sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined
+            sslKeyPassphrase: this.config.sslKeyPassphrase ? "[REDACTED]" : undefined,
         };
         log.debug("server", safeConfig);
 
@@ -212,7 +212,7 @@ export class DockgeServer {
         }));
 
         // Universal Route Handler, must be at the end of all express routes.
-        this.app.get("*", async (_request, response) => {
+        this.app.use(async (_request, response) => {
             response.send(this.indexHTML);
         });
 
