@@ -113,19 +113,31 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 server.sendStackList();
 
                 if (Boolean(deploy)) {
+                    const stack = await Stack.getStack(server, stackName);
                     try {
-                        const stack = await Stack.getStack(server, stackName);
                         await stack.deploy(socket);
                         server.sendStackList();
                         stack.joinCombinedTerminal(socket);
                     } catch (deployError) {
-                        // Deploy failed after extraction: remove the orphaned
-                        // stack folder so the target node isn't left with an
-                        // undeployed stack blocking a retry of this import.
-                        await fsAsync.rm(root, {
-                            recursive: true,
-                            force: true,
-                        });
+                        // Deploy failed after extraction: `docker compose up`
+                        // may have already created containers/networks before
+                        // failing to start them (e.g. a port clash with the
+                        // target node), so tear those down with the same
+                        // "compose down" path used by a normal stack delete
+                        // before removing the folder - otherwise the target
+                        // node is left with both an orphaned container and a
+                        // stack folder blocking any retry of this import.
+                        try {
+                            await stack.delete(socket);
+                        } catch {
+                            // Best-effort: if compose down also fails, still
+                            // fall back to removing the folder so a retry
+                            // isn't blocked by the "already exists" check.
+                            await fsAsync.rm(root, {
+                                recursive: true,
+                                force: true,
+                            });
+                        }
                         server.sendStackList();
                         throw deployError;
                     }
