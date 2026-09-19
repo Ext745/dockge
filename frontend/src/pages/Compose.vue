@@ -369,8 +369,19 @@
             </BModal>
 
             <!-- Transfer Dialog -->
-            <BModal v-model="showTransferDialog" :cancelTitle="$t('cancel')" :okTitle="$t('transferStack')" okVariant="primary" :okDisabled="!transferTarget || transferring" @ok.prevent="confirmTransfer">
+            <BModal v-model="showTransferDialog" :cancelTitle="$t('cancel')" :okTitle="$t('transferStack')" okVariant="primary" :okDisabled="!transferTarget || transferring || (namedVolumesInUse.length > 0 && !transferAckDataLoss)" @ok.prevent="confirmTransfer">
                 <p>{{ $t("transferStackMsg") }}</p>
+
+                <div v-if="namedVolumesInUse.length > 0" class="alert alert-warning">
+                    <p class="mb-2">
+                        <font-awesome-icon icon="exclamation-circle" class="me-1" />
+                        {{ $t("transferVolumeWarning", [ namedVolumesInUse.join(", ") ]) }}
+                    </p>
+                    <div class="form-check">
+                        <input id="transferAckDataLoss" v-model="transferAckDataLoss" type="checkbox" class="form-check-input">
+                        <label class="form-check-label" for="transferAckDataLoss">{{ $t("transferVolumeAck") }}</label>
+                    </div>
+                </div>
 
                 <label class="form-label">{{ $t("targetNode") }}</label>
                 <select v-model="transferTarget" class="form-select">
@@ -488,6 +499,7 @@ export default {
             transferTarget: "",
             transferring: false,
             transferStatus: "",
+            transferAckDataLoss: false,
             newContainerName: "",
             stopServiceStatusTimeout: false,
             stopDockerStatsTimeout: false,
@@ -510,6 +522,49 @@ export default {
         transferTargets() {
             return Object.keys(this.$root.agentList)
                 .filter(endpoint => endpoint !== this.endpoint && this.$root.agentStatusList[endpoint] === "online");
+        },
+
+        /**
+         * Named Docker volumes referenced by this stack's compose file
+         * (top-level `volumes:` declarations, plus any named-volume-style
+         * mounts on individual services). Transfer only zips the stack's
+         * own folder, so data in these volumes is NOT moved - it's left
+         * behind on the source node while the target starts with fresh,
+         * empty volumes of the same name.
+         * @returns {string[]} Named volume names in use, deduplicated
+         */
+        namedVolumesInUse() {
+            const names = new Set();
+
+            if (this.jsonConfig.volumes && typeof this.jsonConfig.volumes === "object") {
+                for (const name of Object.keys(this.jsonConfig.volumes)) {
+                    names.add(name);
+                }
+            }
+
+            const services = this.jsonConfig.services;
+            if (services && typeof services === "object") {
+                for (const service of Object.values(services)) {
+                    if (!service || !Array.isArray(service.volumes)) {
+                        continue;
+                    }
+                    for (const mount of service.volumes) {
+                        if (typeof mount === "string") {
+                            const source = mount.split(":")[0];
+                            // A bind mount source is a relative (./, ../) or
+                            // absolute (/, ~) host path. Anything else is a
+                            // named volume reference.
+                            if (source && !/^(\.|\/|~)/.test(source)) {
+                                names.add(source);
+                            }
+                        } else if (mount && typeof mount === "object" && mount.type === "volume" && mount.source) {
+                            names.add(mount.source);
+                        }
+                    }
+                }
+            }
+
+            return Array.from(names);
         },
 
         urls() {
@@ -900,6 +955,7 @@ export default {
         openTransferDialog() {
             this.transferTarget = this.transferTargets[0] || "";
             this.transferStatus = "";
+            this.transferAckDataLoss = false;
             this.showTransferDialog = true;
         },
 
