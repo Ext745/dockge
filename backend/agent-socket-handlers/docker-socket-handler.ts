@@ -113,10 +113,22 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 server.sendStackList();
 
                 if (Boolean(deploy)) {
-                    const stack = await Stack.getStack(server, stackName);
-                    await stack.deploy(socket);
-                    server.sendStackList();
-                    stack.joinCombinedTerminal(socket);
+                    try {
+                        const stack = await Stack.getStack(server, stackName);
+                        await stack.deploy(socket);
+                        server.sendStackList();
+                        stack.joinCombinedTerminal(socket);
+                    } catch (deployError) {
+                        // Deploy failed after extraction: remove the orphaned
+                        // stack folder so the target node isn't left with an
+                        // undeployed stack blocking a retry of this import.
+                        await fsAsync.rm(root, {
+                            recursive: true,
+                            force: true,
+                        });
+                        server.sendStackList();
+                        throw deployError;
+                    }
                 }
 
                 callbackResult({
