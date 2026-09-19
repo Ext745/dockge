@@ -227,6 +227,12 @@ export class DockgeServer {
         // Create Socket.io
         this.io = new socketIO.Server(this.httpServer, {
             cors,
+            // Default (1 MB) is too small for node-to-node stack transfer,
+            // which sends a whole stack folder (including any bind-mounted
+            // data inside it) as a single base64 message, relayed through
+            // this server whether it's acting as the browser's hub or as the
+            // receiving agent.
+            maxHttpBufferSize: 100 * 1024 * 1024,
             allowRequest: (req, callback) => {
                 let isOriginValid = true;
                 const bypass = isDev || process.env.UPTIME_KUMA_WS_ORIGIN_CHECK === "bypass";
