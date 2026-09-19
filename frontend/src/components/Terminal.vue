@@ -1,12 +1,21 @@
 <template>
-    <div class="shadow-box">
+    <div class="shadow-box terminal-box">
         <div v-pre ref="terminal" class="main-terminal"></div>
+        <button
+            class="copy-all-btn"
+            type="button"
+            :title="$t('copyAllToClipboard')"
+            @click="copyAllToClipboard"
+        >
+            <font-awesome-icon icon="copy" />
+        </button>
     </div>
 </template>
 
 <script>
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { TERMINAL_COLS, TERMINAL_ROWS } from "../../../common/util-common";
 
 export default {
@@ -15,7 +24,7 @@ export default {
      */
     terminal: null,
     components: {
-
+        FontAwesomeIcon,
     },
     props: {
         name: {
@@ -378,21 +387,39 @@ export default {
          * over plain HTTP on a LAN IP (the common self-hosted case) has no
          * Clipboard API at all, so fall back to the legacy
          * document.execCommand("copy") trick, which still works over HTTP.
+         * @param {string} text Text to copy
+         * @returns {Promise<boolean>} Whether the copy succeeded
          */
         async copyToClipboard(text) {
             if (navigator.clipboard?.writeText) {
                 try {
                     await navigator.clipboard.writeText(text);
                     console.debug("Text copied to clipboard:", text);
-                    return;
+                    return true;
                 } catch (error) {
                     console.error("navigator.clipboard.writeText failed, falling back:", error);
                 }
             }
 
-            if (!this.legacyCopyToClipboard(text)) {
-                console.error("Failed to copy to clipboard: no working method available (requires HTTPS or localhost for the modern Clipboard API)");
-                this.$root.toastError(this.$t("clipboardCopyFailed"));
+            if (this.legacyCopyToClipboard(text)) {
+                return true;
+            }
+
+            console.error("Failed to copy to clipboard: no working method available (requires HTTPS or localhost for the modern Clipboard API)");
+            this.$root.toastError(this.$t("clipboardCopyFailed"));
+            return false;
+        },
+
+        /**
+         * Copy the terminal's full scrollback to the clipboard (the
+         * bottom-right "copy all" button), with a success toast - unlike
+         * copyToClipboard()'s other caller (select-to-copy), an explicit
+         * button click should give visible confirmation.
+         */
+        async copyAllToClipboard() {
+            const ok = await this.copyToClipboard(this.getPlainTextContent());
+            if (ok) {
+                this.$root.toastSuccess(this.$t("copiedToClipboard"));
             }
         },
 
@@ -473,8 +500,36 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.terminal-box {
+    position: relative;
+}
+
 .main-terminal {
     height: 100%;
+}
+
+.copy-all-btn {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 5;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.45);
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover,
+    &:focus-visible {
+        background-color: rgba(255, 255, 255, 0.18);
+        color: #fff;
+    }
 }
 </style>
 

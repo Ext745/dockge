@@ -62,6 +62,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🏷️ (Ext745/dockge 🆕) Advanced stack-list filtering by agent and status
 - 🔀 (Ext745/dockge 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
 - 💾 (Ext745/dockge 🆕) Download Log — save a stack's terminal output to a local file
+- 📋 (Ext745/dockge 🆕) Copy-all button on every terminal — one click to copy its full output to the clipboard, with a fallback for HTTP-only instances where the browser's Clipboard API isn't available
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
