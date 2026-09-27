@@ -9,7 +9,7 @@ current, up-to-date list; that section is the canonical changelog, not a
 separate doc.
 
 Currently on `master`, synced with darthrater78/dockge through their
-v2.1.0, released through this fork's own v2.4.0
+v2.3.1, released through this fork's own v2.5.0
 (`ghcr.io/ext745/dockge`). Typecheck/lint clean project-wide (0 eslint
 errors), all changes live-tested against real Docker agents.
 
@@ -23,5 +23,16 @@ Standing rules:
   the host's own daemon - it may be running real, unrelated
   infrastructure that shouldn't be disturbed.
 - Before tagging a release, grep for the outgoing version string across
-  `.vue`/`.ts`/`.json` - `Layout.vue` and `About.vue`'s hardcoded
-  "check update" URLs have gone stale on every release so far.
+  the repo - `About.vue`'s "check update" URL plus the pinned image tag
+  in `compose.yaml` and README's quickstart/one-line updater all carry
+  it (`Layout.vue` now links `/releases/latest`, so it no longer does).
+- Tag namespace: darthrater78 and this fork both tag `vX.Y.Z`, and their
+  v2.2.0/v2.3.0 are different commits from ours. `git fetch origin`
+  keeps our local tags; always pick a release version above both.
+- When merging darthrater78: drop their `.claude/dev-skills-gates.md`
+  (their own session state), repoint any new `darthrater78/dockge`
+  links/images to Ext745 (`git grep darthrater78` - attribution prose,
+  the HACS `ha-dockge` integration and `docker/Dockerfile`'s public
+  `:base`/`:build-healthcheck` images are intentionally left as-is).
+- `docker-release.yml`'s gate job waits for a passing `ci.yml` run on
+  the tagged commit, so push `master` before the tag.

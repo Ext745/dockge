@@ -97,7 +97,7 @@ View Video: https://youtu.be/AWAlOQeNpgU?t=48
 
 ## 🤖 Built by Claude Code
 
-This is a fork of a fork. [darthrater78/dockge](https://github.com/darthrater78/dockge) — the base this repo builds on — had every line of its new code (from v1.5.2 through v2.1.0: REST API, Compose Drift Check, 2FA, port-conflict detection, CI hardening, and more) written by [Claude Code](https://claude.ai/code) under human direction, plus community PRs cherry-picked from [louislam/dockge](https://github.com/louislam/dockge) and its own fork collaborators. Full build history, the Dev Skills gate methodology, and contributor credits live in **[their README](https://github.com/darthrater78/dockge/blob/master/README.md)** — not duplicated here to keep this one short.
+This is a fork of a fork. [darthrater78/dockge](https://github.com/darthrater78/dockge) — the base this repo builds on — had every line of its new code (from v1.5.2 through v2.3.1: REST API, Compose Drift Check, 2FA, port-conflict detection, CI hardening, the mobile redesign, and more) written by [Claude Code](https://claude.ai/code) under human direction, plus community PRs cherry-picked from [louislam/dockge](https://github.com/louislam/dockge) and its own fork collaborators. Full build history, the Dev Skills gate methodology, and contributor credits live in **[their README](https://github.com/darthrater78/dockge/blob/master/README.md)** — not duplicated here to keep this one short.
 
 ### This fork — [Ext745/dockge](https://github.com/Ext745/dockge)
 
@@ -117,9 +117,9 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 
 Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). See `PORTING.md` and `dockge-port-tracking.md` in this repo for the full write-up, live-test methodology, and the bugs found.
 
-**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78's stack list already reflows usably on phone-width viewports via CSS grid). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
+**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
-This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy).
+This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
 
 ---
 
@@ -203,7 +203,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.4.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.5.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
 ```yaml
       - PUID=1000
@@ -217,7 +217,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.4.0
+    image: ghcr.io/ext745/dockge:2.5.0
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -247,14 +247,14 @@ services:
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.4.0`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.5.0`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.4.0; F=/opt/docker/dockge/compose.yaml
+V=2.5.0; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
