@@ -162,6 +162,8 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 💾 (Ext745/dockge 🆕) Download Log — save a stack's terminal output to a local file
 - 📋 (Ext745/dockge 🆕) Copy-all button on every terminal — one click to copy its full output to the clipboard, with a fallback for HTTP-only instances where the browser's Clipboard API isn't available
 - ⌨️ (Ext745/dockge 🆕) Raw-keystroke console — tab completion, command history and Ctrl+C work in the host Console like a real terminal
+- 🔔 (Ext745/dockge 2.5.1 🆕) Update check that works — "Show update if available" now checks this fork's GitHub Releases (it used to ask louislam's 1.x endpoint and never fired), and Settings → About opens the releases page
+- 🗑️ (Ext745/dockge 2.5.2 🆕) Delete works on a broken compose file — a stack saved with an invalid `compose.yaml` (or whose Deploy failed on one) can be deleted again, and its containers are removed too
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
