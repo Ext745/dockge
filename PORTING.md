@@ -49,7 +49,7 @@ cleared (`eslint --fix`, 2026-09-01) — the port has nothing left outstanding a
 
 ## Done — live-tested and verified
 - **Agent Maintenance UI** (branch `feat/agent-maintenance`)
-  - Patches: `0001-Port-Agent-Maintenance-UI-from-hamphh-dockge-1.2.patch`, `0002-Fix-pre-existing-object-property-newline-lint-errors.patch`
+  - Commits: `a56309e` (port), `39d269a` (lint fix)
   - Backend logic/types already existed unwired in darthrater78; added the socket handler, `AgentMaintenance.vue` page, `DockerArtefact.vue` + `ProgressTerminal.vue` components, `/agent` routes, nav link, missing i18n strings, missing icon, missing scss var.
   - Verified: `tsc --noEmit` clean, `vite build` clean, `eslint` clean on all touched files.
   - **Live-tested 2026-09-01** against two real, independent Docker daemons (docker:27-dind sidecars, one per dockge instance) driving the actual socket protocol end-to-end: container/image/network/volume listing, per-artefact prune/pruneAll/remove, image pull, `dockerSystemPrune`, live terminal streaming (captured real `docker pull` progress-bar ANSI output over the socket), and multi-agent endpoint switching (master vs. a registered remote agent, confirmed each targets its own daemon with independently-different data). Full setup + driver script notes below.
