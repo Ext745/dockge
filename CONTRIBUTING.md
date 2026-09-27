@@ -1,6 +1,6 @@
 ## Can I create a pull request for Dockge?
 
-Yes or no, it depends on what you will try to do. So that your time isn't wasted, please **[open an issue](https://github.com/Ext745/dockge/issues/new/choose) first so we can discuss it**. Especially for a large pull request or you don't know if it will be merged or not.
+Issues aren't enabled on this fork, so there's no place to discuss a change before you make it. For changes to Dockge itself, contribute upstream to [darthrater78/dockge](https://github.com/darthrater78/dockge) or [louislam/dockge](https://github.com/louislam/dockge), and they'll reach this fork on the next sync. Pull requests here are reviewed as time allows; keep them small and focused on this fork's own features.
 
 Here are some references:
 
@@ -10,9 +10,9 @@ Here are some references:
 - Adding new language files (see [these instructions](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md))
 - Adding new language keys: `$t("...")`
 
-### ⚠️ Issue discussion required:
+### ⚠️ Likely to be declined here (take them upstream instead):
 - Large pull requests
-- New features
+- New features that aren't specific to this fork
 
 ### ❌ Won't be merged:
 - A dedicated PR for translating existing languages (see [these instructions](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md))
@@ -28,7 +28,7 @@ Here are some references:
 
 The above cases may not cover all possible situations.
 
-The maintainer of this fork (@Ext745) has the final say. A pull request that doesn't fit the project may be declined, no matter how much time went into it. Therefore, it is essential to discuss it in an issue beforehand.
+The maintainer of this fork (@Ext745) has the final say. A pull request that doesn't fit the project may be declined, no matter how much time went into it, so keep pull requests here small.
 
 Also, please don't rush or ask for an ETA: every pull request has to be understood, checked for breaking changes and kept in line with the project's direction, especially large ones.
 

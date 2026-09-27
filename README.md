@@ -460,11 +460,8 @@ If you love this project, please consider giving it a ⭐.
 
 ## 🗣️ Community and Contribution
 
-### Bug Report
-https://github.com/Ext745/dockge/issues
-
-### Ask for Help / Discussions
-https://github.com/Ext745/dockge/discussions
+### Bug Reports and Help
+This fork doesn't run its own issue tracker or discussion board. Almost all of Dockge's code comes from upstream, so report bugs and ask questions at [darthrater78/dockge](https://github.com/darthrater78/dockge/issues) (this fork's base), or [louislam/dockge](https://github.com/louislam/dockge/issues) for the original project. Please check that the problem also happens on their release, since this fork's own additions (listed under "This fork — Ext745/dockge" above) aren't theirs to support.
 
 ### Security Issues
 Please report privately: https://github.com/Ext745/dockge/security/advisories/new
