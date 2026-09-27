@@ -114,6 +114,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Node-to-node stack transfer** | Zip a stack, send it to another connected agent, deploy it there, then remove it from the source — moves a stack between hosts from the kebab menu. Ported from [NekoSuneProjectsForks/dockge](https://github.com/NekoSuneProjectsForks/dockge), with its RBAC-dependent access checks (a role system this fork doesn't have) dropped down to this fork's actual `checkLogin`-only auth model. Hardened after live-testing against real multi-agent setups: rolls back cleanly on a failed deploy (no orphaned containers or folders left behind), warns before moving a stack that uses named Docker volumes (their data isn't part of the transfer), handles larger stacks (raised the socket message-size limit), and the export → import → delete sequence now runs entirely server-side so it finishes even if the browser tab that started it closes |
 | **Interactive progress terminal** | The Compose/Agent Maintenance progress terminal now forwards keystrokes, so `docker compose` `[y/N]` prompts and Ctrl+C work instead of hanging forever. Also from NekoSuneProjectsForks/dockge |
 | **Auto-prune dangling images** | `Stack.update()` now prunes dangling images after a successful pull+up, so old layers don't pile up on every update |
+| **Raw-keystroke host console** | The Console page now sends every keystroke straight to the shell instead of editing a line locally and sending it on Enter, so bash's own tab completion, Up/Down history, cursor editing, Ctrl+C and full-screen programs work. Same shell and same access as before (the console is still off unless `DOCKGE_ENABLE_CONSOLE=true`). Adapted from [Lorwell/dockge](https://github.com/Lorwell/dockge) commit `7a36b47` |
 
 <table>
   <tr>
@@ -156,6 +157,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🔀 (Ext745/dockge 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
 - 💾 (Ext745/dockge 🆕) Download Log — save a stack's terminal output to a local file
 - 📋 (Ext745/dockge 🆕) Copy-all button on every terminal — one click to copy its full output to the clipboard, with a fallback for HTTP-only instances where the browser's Clipboard API isn't available
+- ⌨️ (Ext745/dockge 🆕) Raw-keystroke console — tab completion, command history and Ctrl+C work in the host Console like a real terminal
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
