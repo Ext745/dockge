@@ -9,7 +9,7 @@ current, up-to-date list; that section is the canonical changelog, not a
 separate doc.
 
 Currently on `master`, synced with darthrater78/dockge through their
-v2.3.1, released through this fork's own v2.5.0
+v2.3.1, released through this fork's own v2.5.1
 (`ghcr.io/ext745/dockge`). Typecheck/lint clean project-wide (0 eslint
 errors), all changes live-tested against real Docker agents.
 
