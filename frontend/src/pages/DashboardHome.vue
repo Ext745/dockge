@@ -1,6 +1,6 @@
 <template>
     <transition ref="tableContainer" name="slide-fade" appear>
-        <div v-if="$route.name === 'DashboardHome'">
+        <div v-if="$route.name === 'DashboardHome' || $route.name === 'Overview'">
             <h1 class="mb-3">
                 {{ $t("home") }}
             </h1>
@@ -35,13 +35,13 @@
                     <button class="btn-normal btn mb-4" @click="convertDockerRun">{{ $t("Convert to Compose") }}</button>
 
                     <!-- Compose Drift Check -->
-                    <div class="shadow-box big-padding mb-4 drift-check-panel">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div id="drift-check" ref="driftCheck" class="shadow-box big-padding mb-4 drift-check-panel">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <h4 class="mb-0">
                                 <font-awesome-icon icon="code-compare" class="me-1" />
                                 {{ $t("driftCheck") }}
                             </h4>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-2 text-nowrap">
                                 <button
                                     v-if="allMismatches.length > 1"
                                     class="btn btn-primary btn-sm"
@@ -72,33 +72,53 @@
 
                         <div v-else>
                             <div class="mb-2 text-muted small">{{ $t("versionMismatchesFound", [ allMismatches.length ]) }}</div>
-                            <table class="table table-sm mb-2">
-                                <thead>
-                                    <tr>
-                                        <th>{{ $t("stackName") }}</th>
-                                        <th>{{ $t("service") }}</th>
-                                        <th>{{ $t("composeImage") }}</th>
-                                        <th>{{ $t("runningImage") }}</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(m, i) in allMismatches" :key="i">
-                                        <td>
-                                            <router-link :to="'/compose/' + m.stackName + (m.endpoint ? '/' + m.endpoint : '')">{{ m.stackName }}</router-link>
-                                            <span v-if="m.endpoint" class="badge bg-secondary ms-1" style="font-size: 10px;">{{ getEndpointLabel(m.endpoint) }}</span>
-                                        </td>
-                                        <td>{{ m.service }}</td>
-                                        <td><code>{{ m.composeImage }}</code></td>
-                                        <td><code>{{ m.runningImage }}</code></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary" :disabled="versionSyncLoading" @click="syncVersion(m)">
-                                                {{ $t("sync") }}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <!-- Phones: one card per mismatch instead of a five-column table -->
+                            <!-- Phones, or a panel too narrow for the five-column table: one card per mismatch -->
+                            <ul v-if="$root.isMobile || driftCompact" class="drift-cards">
+                                <li v-for="(m, i) in allMismatches" :key="'m' + i">
+                                    <div class="drift-card-head">
+                                        <router-link :to="'/compose/' + m.stackName + (m.endpoint ? '/' + m.endpoint : '')">{{ m.stackName }}</router-link>
+                                        <span class="text-muted"> / {{ m.service }}</span>
+                                        <span v-if="m.endpoint" class="badge bg-secondary ms-1">{{ getEndpointLabel(m.endpoint) }}</span>
+                                    </div>
+                                    <div class="drift-images">
+                                        <span class="small text-muted">{{ $t("composeImage") }}</span><code>{{ m.composeImage }}</code>
+                                        <span class="small text-muted">{{ $t("runningImage") }}</span><code>{{ m.runningImage }}</code>
+                                    </div>
+                                    <button class="btn btn-sm btn-primary w-100 mt-2" :disabled="versionSyncLoading" @click="syncVersion(m)">
+                                        <font-awesome-icon icon="arrows-rotate" class="me-1" />{{ $t("sync") }}
+                                    </button>
+                                </li>
+                            </ul>
+                            <div v-else class="table-responsive">
+                                <table class="table table-sm mb-2">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ $t("stackName") }}</th>
+                                            <th>{{ $t("service") }}</th>
+                                            <th>{{ $t("composeImage") }}</th>
+                                            <th>{{ $t("runningImage") }}</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(m, i) in allMismatches" :key="i">
+                                            <td>
+                                                <router-link :to="'/compose/' + m.stackName + (m.endpoint ? '/' + m.endpoint : '')">{{ m.stackName }}</router-link>
+                                                <span v-if="m.endpoint" class="badge bg-secondary ms-1" style="font-size: 10px;">{{ getEndpointLabel(m.endpoint) }}</span>
+                                            </td>
+                                            <td>{{ m.service }}</td>
+                                            <td><code>{{ m.composeImage }}</code></td>
+                                            <td><code>{{ m.runningImage }}</code></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" :disabled="versionSyncLoading" @click="syncVersion(m)">
+                                                    {{ $t("sync") }}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <div v-if="scanErrors.length > 0" class="mt-2">
@@ -193,6 +213,9 @@
 <script>
 import { statusNameShort } from "../../../common/util-common";
 
+// Below this panel width the drift results are shown as cards instead of a table
+const DRIFT_TABLE_MIN_WIDTH = 720;
+
 export default {
     components: {
 
@@ -227,6 +250,8 @@ export default {
                 updatedName: "",
             },
             versionScanStarted: false,
+            // The drift panel is too narrow for its table (it sits in a column beside the agents)
+            driftCompact: false,
             versionScanLoading: false,
             versionSyncLoading: false,
             allMismatches: [],
@@ -264,10 +289,23 @@ export default {
 
         window.addEventListener("resize", this.updatePerPage);
         this.updatePerPage();
+
+        // Deep link from the mobile stack list / menu: jump straight to Compose Drift Check
+        if (this.$route.hash === "#drift-check") {
+            this.$nextTick(() => this.$refs.driftCheck?.scrollIntoView({ block: "start" }));
+        }
+
+        if (this.$refs.driftCheck) {
+            this.driftObserver = new ResizeObserver(([ entry ]) => {
+                this.driftCompact = entry.contentRect.width < DRIFT_TABLE_MIN_WIDTH;
+            });
+            this.driftObserver.observe(this.$refs.driftCheck);
+        }
     },
 
     beforeUnmount() {
         window.removeEventListener("resize", this.updatePerPage);
+        this.driftObserver?.disconnect();
     },
 
     methods: {
@@ -557,6 +595,39 @@ table {
 }
 
 .drift-check-panel {
+    scroll-margin-top: calc(var(--mobile-header-height, 0px) + 8px);
+
+    .drift-cards {
+        list-style: none;
+        margin: 0 0 8px;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 10px;
+
+        li {
+            padding: 10px 12px;
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+        }
+
+        .drift-card-head {
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
+
+        .drift-images {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2px 10px;
+            align-items: baseline;
+            margin-top: 6px;
+
+            code {
+                overflow-wrap: anywhere;
+            }
+        }
+    }
     .dark & {
         table {
             --bs-table-color: #{$dark-font-color};

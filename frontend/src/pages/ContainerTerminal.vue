@@ -1,39 +1,39 @@
 <template>
     <transition name="slide-fade" appear>
-        <div>
-            <h1 class="mb-3">{{ $t("terminal") }} - {{ serviceName }} ({{ stackName }})</h1>
-
-            <div class="mb-3">
-                <router-link :to="sh" class="btn btn-normal me-2">{{ $t("Switch to sh") }}</router-link>
+        <div :class="{ 'mobile-terminal-page': $root.isMobile }">
+            <div v-if="$root.isMobile" class="m-topbar">
+                <router-link :to="stackLink" class="m-icon-btn" :aria-label="$t('back')">
+                    <font-awesome-icon icon="arrow-left" />
+                </router-link>
+                <div class="m-title">
+                    <div class="m-name">{{ serviceName }}</div>
+                    <div class="m-sub">{{ stackName }} · {{ shell }}</div>
+                </div>
+                <router-link v-if="shell !== 'sh'" :to="sh" class="btn btn-normal btn-sm me-2">{{ $t("Switch to sh") }}</router-link>
             </div>
 
-            <div class="terminal-wrapper" :style="{ height: terminalHeight + 'px' }">
-                <Terminal ref="resizableTerminal" class="terminal" :rows="20" mode="interactive" :name="terminalName" :stack-name="stackName" :service-name="serviceName" :shell="shell" :endpoint="endpoint"></Terminal>
-            </div>
-            <div
-                class="terminal-resize-handle"
-                role="separator"
-                aria-orientation="horizontal"
-                :aria-label="$t('resizeTerminal')"
-                tabindex="0"
-                @mousedown="startResize"
-                @touchstart="startResize"
-                @keydown="onHandleKeydown"
-            >
-                <div class="resize-grip"></div>
-            </div>
+            <template v-else>
+                <h1 class="mb-3">{{ $t("terminal") }} - {{ serviceName }} ({{ stackName }})</h1>
+
+                <div class="mb-3">
+                    <router-link :to="sh" class="btn btn-normal me-2">{{ $t("Switch to sh") }}</router-link>
+                </div>
+            </template>
+
+            <TerminalPanel
+                storage-key="dockge-terminal-height" :rows="20"
+                :fill-height="$root.isMobile ? 'calc(100dvh - 56px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 48px)' : null" mode="interactive" :name="terminalName" :stack-name="stackName" :service-name="serviceName" :shell="shell" :endpoint="endpoint"
+            />
         </div>
     </transition>
 </template>
 
 <script>
 import { getContainerExecTerminalName } from "../../../common/util-common";
-import resizableTerminal from "../mixins/resizableTerminal";
 
 export default {
     components: {
     },
-    mixins: [ resizableTerminal ],
     data() {
         return {
 
@@ -54,6 +54,9 @@ export default {
         },
         terminalName() {
             return getContainerExecTerminalName(this.endpoint, this.stackName, this.serviceName, 0);
+        },
+        stackLink() {
+            return this.endpoint ? `/compose/${this.stackName}/${this.endpoint}` : `/compose/${this.stackName}`;
         },
         sh() {
             let endpoint = this.$route.params.endpoint;
@@ -85,40 +88,48 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.terminal-wrapper {
-    min-height: 200px;
-}
-
-.terminal {
-    height: 100%;
-}
-
-.terminal-resize-handle {
-    height: 14px;
-    margin-top: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: ns-resize;
-    touch-action: none;
-    user-select: none;
-
-    &:focus-visible {
-        outline: 2px solid var(--bs-primary, #5cdd8b);
-        outline-offset: 2px;
-        border-radius: 4px;
+.mobile-terminal-page {
+    .m-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 1001;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: calc(56px + env(safe-area-inset-top));
+        margin: 0 -12px 8px;
+        padding: env(safe-area-inset-top) 4px 0;
+        background-color: var(--bar-bg);
+        border-bottom: 1px solid var(--card-border);
     }
 
-    .resize-grip {
-        width: 40px;
-        height: 4px;
-        border-radius: 2px;
-        background-color: rgba(128, 128, 128, 0.4);
+    .m-icon-btn {
+        width: 44px;
+        height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+        font-size: 20px;
     }
 
-    &:hover .resize-grip,
-    &:focus .resize-grip {
-        background-color: rgba(128, 128, 128, 0.7);
+    .m-title {
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.2;
+
+        .m-name {
+            font-size: 17px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .m-sub {
+            font-size: 12px;
+            opacity: 0.7;
+        }
     }
 }
 </style>

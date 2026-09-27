@@ -82,6 +82,31 @@ function imageRefsMatch(composeImage: string, runningImage: string): boolean {
     return composeRepo === runningRepo && composeRef.tag === runningRef.tag;
 }
 
+/**
+ * Run `docker <args>` and parse its JSON array output; [] on failure or no output.
+ * @param args Docker CLI arguments ending in the object IDs
+ * @returns Parsed array
+ */
+async function dockerInspectJSON(args: string[]): Promise<Record<string, unknown>[]> {
+    try {
+        const res = await childProcessAsync.spawn("docker", args, { encoding: "utf-8" });
+        if (!res.stdout) {
+            return [];
+        }
+        const data = JSON.parse(res.stdout.toString());
+        return Array.isArray(data) ? data : [];
+    } catch (e) {
+        log.debug("compose-version-sync", `docker ${args[0]} failed: ${e}`);
+        return [];
+    }
+}
+
+/**
+ * Every running compose container, keyed by "project::service", with its configured image and the
+ * tags of the image it runs. Three docker calls in total (ps, one batched container inspect, one
+ * batched image inspect), however many containers there are.
+ * @returns Running containers
+ */
 async function getRunningContainers(): Promise<Map<string, RunningContainerInfo>> {
     const containers = new Map<string, RunningContainerInfo>();
 
@@ -94,6 +119,7 @@ async function getRunningContainers(): Promise<Map<string, RunningContainerInfo>
     }
 
     const lines = res.stdout.toString().trim().split("\n").filter(Boolean);
+    const composeContainers: { id: string, project: string, service: string, image: string }[] = [];
 
     for (const line of lines) {
         const info = JSON.parse(line);
@@ -113,44 +139,36 @@ async function getRunningContainers(): Promise<Map<string, RunningContainerInfo>
         if (!project || !service) {
             continue;
         }
+        composeContainers.push({ id: info.ID, project, service, image: info.Image || "" });
+    }
 
-        const containerId = info.ID;
-        let imageTags: string[] = [];
-        let configImage = info.Image || "";
+    if (composeContainers.length === 0) {
+        return containers;
+    }
 
-        try {
-            const inspectRes = await childProcessAsync.spawn("docker", [
-                "inspect", "--format", "json", containerId
-            ], { encoding: "utf-8" });
+    // Container ID -> { configured image, image ID }
+    const inspected = new Map<string, { configImage: string, imageId: string }>();
+    for (const c of await dockerInspectJSON([ "inspect", "--format", "json", ...composeContainers.map(c => c.id) ])) {
+        const config = c.Config as { Image?: string } | undefined;
+        inspected.set(String(c.Id), { configImage: config?.Image || "", imageId: String(c.Image || "") });
+    }
 
-            if (inspectRes.stdout) {
-                const inspectData = JSON.parse(inspectRes.stdout.toString());
-                if (Array.isArray(inspectData) && inspectData[0]) {
-                    configImage = inspectData[0].Config?.Image || configImage;
-                    const imageId = inspectData[0].Image;
-                    if (imageId) {
-                        const imgInspect = await childProcessAsync.spawn("docker", [
-                            "image", "inspect", "--format", "json", imageId
-                        ], { encoding: "utf-8" });
-                        if (imgInspect.stdout) {
-                            const imgData = JSON.parse(imgInspect.stdout.toString());
-                            if (Array.isArray(imgData) && imgData[0]) {
-                                imageTags = imgData[0].RepoTags || [];
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            log.debug("compose-version-sync", `Failed to inspect container ${containerId}: ${e}`);
+    // Image ID -> repo tags
+    const imageIds = [ ...new Set([ ...inspected.values() ].map(i => i.imageId).filter(Boolean)) ];
+    const imageTagsById = new Map<string, string[]>();
+    if (imageIds.length > 0) {
+        for (const img of await dockerInspectJSON([ "image", "inspect", "--format", "json", ...imageIds ])) {
+            imageTagsById.set(String(img.Id), (img.RepoTags as string[]) || []);
         }
+    }
 
-        const key = `${project}::${service}`;
-        containers.set(key, {
-            project,
-            service,
-            imageTags,
-            configImage,
+    for (const c of composeContainers) {
+        const details = inspected.get(c.id);
+        containers.set(`${c.project}::${c.service}`, {
+            project: c.project,
+            service: c.service,
+            imageTags: details ? imageTagsById.get(details.imageId) ?? [] : [],
+            configImage: details?.configImage || c.image,
         });
     }
 
@@ -204,7 +222,13 @@ function findBestRunningTag(imageTags: string[], composeImage: string): string {
     return imageTags[0];
 }
 
-export async function scanStack(stacksDir: string, stackName: string): Promise<VersionScanResult> {
+/**
+ * @param stacksDir Stacks directory
+ * @param stackName Stack to scan
+ * @param runningContainers Pass when scanning many stacks, so docker is queried once rather than per stack
+ * @returns Mismatches, matches and services with no running container
+ */
+export async function scanStack(stacksDir: string, stackName: string, runningContainers?: Map<string, RunningContainerInfo>): Promise<VersionScanResult> {
     const result: VersionScanResult = {
         mismatches: [],
         matched: [],
@@ -225,7 +249,7 @@ export async function scanStack(stacksDir: string, stackName: string): Promise<V
     }
 
     const composeServices = getComposeServices(composePath);
-    const runningContainers = await getRunningContainers();
+    runningContainers ??= await getRunningContainers();
 
     for (const [ serviceName, composeImage ] of composeServices) {
         const key = `${stackName}::${serviceName}`;
@@ -275,6 +299,7 @@ export async function scanAllStacks(stacksDir: string): Promise<VersionScanResul
     }
 
     const entries = fs.readdirSync(stacksDir);
+    const runningContainers = await getRunningContainers();
     for (const entry of entries) {
         const entryPath = path.join(stacksDir, entry);
         try {
@@ -286,7 +311,7 @@ export async function scanAllStacks(stacksDir: string): Promise<VersionScanResul
             continue;
         }
 
-        const result = await scanStack(stacksDir, entry);
+        const result = await scanStack(stacksDir, entry, runningContainers);
         combined.mismatches.push(...result.mismatches);
         combined.matched.push(...result.matched);
         combined.unmatchedServices.push(...result.unmatchedServices);

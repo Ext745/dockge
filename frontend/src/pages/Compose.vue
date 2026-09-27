@@ -1,16 +1,61 @@
 <template>
     <transition name="slide-fade" appear>
-        <div>
-            <h1 v-if="isAdd" class="mb-3">{{ $t("compose") }}</h1>
-            <h1 v-else class="mb-3">
+        <div :class="{ 'mobile-stack-page': $root.isMobile, 'has-action-bar': showActionBar }">
+            <!-- Mobile: back / title / more-actions bar, then section tabs -->
+            <template v-if="$root.isMobile">
+                <div class="m-topbar">
+                    <button type="button" class="m-icon-btn" :aria-label="$t('back')" @click="$router.push('/')">
+                        <font-awesome-icon icon="arrow-left" />
+                    </button>
+                    <div class="m-title">
+                        <div class="m-name">{{ isAdd ? $t("compose") : stack.name }}</div>
+                        <div v-if="!isAdd" class="m-sub">
+                            <Uptime :stack="globalStack" :pill="true" />
+                            <span v-if="$root.agentCount > 1 && endpoint !== ''" class="agent-name">{{ endpointDisplay }}</span>
+                        </div>
+                    </div>
+                    <BDropdown v-if="!isAdd && stack.isManagedByDockge && !isEditMode" variant="link" no-caret end toggle-class="m-icon-btn" :aria-label="$t('moreActions')">
+                        <template #button-content>
+                            <font-awesome-icon icon="ellipsis-vertical" />
+                        </template>
+                        <BDropdownItem :disabled="processing" @click="updateStack">
+                            <font-awesome-icon icon="cloud-arrow-down" fixed-width class="me-2" />{{ $t("updateStack") }}
+                        </BDropdownItem>
+                        <BDropdownItem v-if="active" :disabled="versionScanLoading" @click="scanVersionSync(); mobileTab = 'overview'">
+                            <font-awesome-icon icon="code-compare" fixed-width class="me-2" />{{ $t("driftCheck") }}
+                        </BDropdownItem>
+                        <BDropdownItem :disabled="processing" @click="downStack">
+                            <font-awesome-icon icon="stop" fixed-width class="me-2" />{{ $t("downStack") }}
+                        </BDropdownItem>
+                        <BDropdownDivider />
+                        <BDropdownItem variant="danger" :disabled="processing" @click="showDeleteDialog = true">
+                            <font-awesome-icon icon="trash" fixed-width class="me-2" />{{ $t("deleteStack") }}
+                        </BDropdownItem>
+                    </BDropdown>
+                </div>
+
+                <div v-if="stack.isManagedByDockge" class="m-tabs" role="tablist">
+                    <button
+                        v-for="tab in mobileTabs" :key="tab.key" type="button" role="tab"
+                        :aria-selected="mobileTab === tab.key" :class="{ selected: mobileTab === tab.key }"
+                        @click="mobileTab = tab.key"
+                    >
+                        <font-awesome-icon :icon="tab.icon" class="me-1" />{{ tab.label }}
+                        <span v-if="tab.key === 'logs' && processing && !isAdd" class="busy-dot" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </template>
+
+            <h1 v-if="isAdd && !$root.isMobile" class="mb-3">{{ $t("compose") }}</h1>
+            <h1 v-else-if="!$root.isMobile" class="mb-3">
                 <Uptime :stack="globalStack" :pill="true" /> {{ stack.name }}
                 <span v-if="$root.agentCount > 1 && endpoint !== ''" class="agent-name">
                     ({{ endpointDisplay }})
                 </span>
             </h1>
 
-            <div v-if="stack.isManagedByDockge" class="mb-3">
-                <div class="btn-group me-2" role="group">
+            <div v-if="stack.isManagedByDockge && !$root.isMobile" class="stack-actions mb-3">
+                <div class="btn-group" role="group">
                     <button v-if="isEditMode" class="btn btn-primary" :disabled="processing" @click="deployStack">
                         <font-awesome-icon icon="rocket" class="me-1" />
                         {{ $t("deployStack") }}
@@ -64,14 +109,19 @@
 
                 <button v-if="isEditMode && !isAdd" class="btn btn-normal" :disabled="processing" @click="discardStack">{{ $t("discardStack") }}</button>
 
-                <button v-if="!isEditMode && !isAdd && active" class="btn btn-normal ms-2" :disabled="versionScanLoading" @click="scanVersionSync">
+                <button v-if="!isEditMode && !isAdd && active" class="btn btn-normal" :disabled="versionScanLoading" @click="scanVersionSync">
                     <font-awesome-icon icon="code-compare" class="me-1" />
                     {{ $t("driftCheck") }}
                 </button>
             </div>
 
+            <!-- Mobile: which agent this stack lives on -->
+            <div v-if="$root.isMobile && $root.agentCount > 1 && !isAdd" v-show="show('overview')" class="stack-agent mb-2">
+                <font-awesome-icon icon="server" class="me-2" />{{ $tc("dockgeAgent", 1) }}: <strong>{{ endpoint ? endpointDisplay : $t("currentEndpoint") }}</strong>
+            </div>
+
             <!-- URLs -->
-            <div v-if="urls.length > 0" class="mb-3">
+            <div v-if="urls.length > 0" v-show="show('overview')" class="mb-3 stack-urls">
                 <a v-for="(urlItem, index) in urls" :key="index" target="_blank" :href="urlItem.url">
                     <span class="badge bg-secondary me-2">{{ urlItem.display }}</span>
                 </a>
@@ -79,7 +129,7 @@
 
             <!-- Version Sync Mismatches -->
             <transition name="slide-fade" appear>
-                <div v-if="showVersionSync" class="mb-3 shadow-box big-padding">
+                <div v-if="showVersionSync" v-show="show('overview')" class="mb-3 shadow-box big-padding version-sync">
                     <div class="d-flex align-items-center mb-2">
                         <h5 class="mb-0 me-auto">
                             <font-awesome-icon icon="code-compare" class="me-1" />
@@ -129,12 +179,12 @@
             </transition>
 
             <!-- Progress Terminal -->
-            <ProgressTerminal ref="progressTerminal" :name="terminalName" :endpoint="endpoint" />
+            <ProgressTerminal v-show="show('logs')" ref="progressTerminal" :name="terminalName" :endpoint="endpoint" />
 
             <div v-if="stack.isManagedByDockge" class="row">
-                <div class="col-lg-6">
+                <div class="col-lg-6" :class="{ 'order-last': $root.isMobile && mobileTab === 'compose' }">
                     <!-- General -->
-                    <div v-if="isAdd">
+                    <div v-if="isAdd" v-show="show('overview')">
                         <h4 class="mb-3">{{ $t("general") }}</h4>
                         <div class="shadow-box big-padding mb-3">
                             <!-- Stack Name -->
@@ -157,39 +207,41 @@
                     </div>
 
                     <!-- Containers -->
-                    <h4 class="mb-3">{{ $tc("container", 2) }}</h4>
+                    <div v-show="show('overview')">
+                        <h4 class="mb-3">{{ $tc("container", 2) }}</h4>
 
-                    <div v-if="isEditMode" class="input-group mb-3">
-                        <input
-                            v-model="newContainerName"
-                            :placeholder="$t(`New Container Name...`)"
-                            class="form-control"
-                            @keyup.enter="addContainer"
-                        />
-                        <button class="btn btn-primary" @click="addContainer">
-                            {{ $t("addContainer") }}
-                        </button>
+                        <div v-if="isEditMode" class="input-group mb-3">
+                            <input
+                                v-model="newContainerName"
+                                :placeholder="$t(`New Container Name...`)"
+                                class="form-control"
+                                @keyup.enter="addContainer"
+                            />
+                            <button class="btn btn-primary" @click="addContainer">
+                                {{ $t("addContainer") }}
+                            </button>
+                        </div>
+
+                        <div ref="containerList">
+                            <Container
+                                v-for="(service, name) in jsonConfig.services"
+                                :key="name"
+                                :name="name"
+                                :is-edit-mode="isEditMode"
+                                :first="name === Object.keys(jsonConfig.services)[0]"
+                                :serviceStatus="serviceStatusList[name]"
+                                :dockerStats="dockerStats"
+                                @start-service="startService"
+                                @stop-service="stopService"
+                                @restart-service="restartService"
+                            />
+                        </div>
+
+                        <button v-if="false && isEditMode && jsonConfig.services && Object.keys(jsonConfig.services).length > 0" class="btn btn-normal mb-3" @click="addContainer">{{ $t("addContainer") }}</button>
                     </div>
-
-                    <div ref="containerList">
-                        <Container
-                            v-for="(service, name) in jsonConfig.services"
-                            :key="name"
-                            :name="name"
-                            :is-edit-mode="isEditMode"
-                            :first="name === Object.keys(jsonConfig.services)[0]"
-                            :serviceStatus="serviceStatusList[name]"
-                            :dockerStats="dockerStats"
-                            @start-service="startService"
-                            @stop-service="stopService"
-                            @restart-service="restartService"
-                        />
-                    </div>
-
-                    <button v-if="false && isEditMode && jsonConfig.services && Object.keys(jsonConfig.services).length > 0" class="btn btn-normal mb-3" @click="addContainer">{{ $t("addContainer") }}</button>
 
                     <!-- General -->
-                    <div v-if="isEditMode">
+                    <div v-if="isEditMode" v-show="show('compose')">
                         <h4 class="mb-3">{{ $t("extra") }}</h4>
                         <div class="shadow-box big-padding mb-3">
                             <!-- URLs -->
@@ -203,26 +255,27 @@
                     </div>
 
                     <!-- Combined Terminal Output -->
-                    <div v-show="!isEditMode">
+                    <div v-show="$root.isMobile ? show('logs') && !isAdd : !isEditMode">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h4 class="mb-0">{{ $t("terminal") }}</h4>
-                            <button class="btn btn-normal btn-sm" @click="$refs.combinedTerminal.downloadLog()">
+                            <h4 v-if="!$root.isMobile" class="mb-0">{{ $t("terminal") }}</h4>
+                            <button class="btn btn-normal btn-sm ms-auto" @click="$refs.combinedTerminal.$refs.terminal.downloadLog()">
                                 <font-awesome-icon icon="download" class="me-1" />
                                 {{ $t("downloadLog") }}
                             </button>
                         </div>
-                        <Terminal
+                        <TerminalPanel
                             ref="combinedTerminal"
-                            class="mb-3 terminal"
+                            storage-key="dockge-stack-terminal-height"
+                            :default-height="315"
+                            :fill-height="$root.isMobile ? mobileTerminalHeight : null"
                             :name="combinedTerminalName"
                             :endpoint="endpoint"
                             :rows="combinedTerminalRows"
                             :cols="combinedTerminalCols"
-                            style="height: 315px;"
-                        ></Terminal>
+                        />
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div v-show="show('compose')" class="col-lg-6">
                     <!-- Override YAML editor (only show if file exists) -->
                     <div v-if="stack.composeOverrideYAML && stack.composeOverrideYAML.trim() !== ''">
                         <h4 class="mb-3">{{ stack.composeOverrideFileName || 'compose.override.yaml' }}</h4>
@@ -365,9 +418,55 @@
                 </div>
             </div>
 
-            <div v-if="!stack.isManagedByDockge && !processing">
+            <div v-if="!stack.isManagedByDockge && !processing" class="unmanaged-msg">
                 {{ $t("stackNotManagedByDockgeMsg") }}
             </div>
+
+            <!-- Mobile: primary actions within thumb reach -->
+            <nav v-if="showActionBar" class="m-action-bar">
+                <template v-if="isEditMode">
+                    <button type="button" class="m-action primary" :disabled="processing" @click="deployStack">
+                        <font-awesome-icon icon="rocket" /><span>{{ $t("deployStack") }}</span>
+                    </button>
+                    <button type="button" class="m-action" :disabled="processing" @click="saveStack">
+                        <font-awesome-icon icon="save" /><span>{{ $t("saveStackDraft") }}</span>
+                    </button>
+                    <button v-if="!isAdd" type="button" class="m-action" :disabled="processing" @click="discardStack">
+                        <font-awesome-icon icon="undo" /><span>{{ $t("discardStack") }}</span>
+                    </button>
+                </template>
+                <template v-else>
+                    <button v-if="!active" type="button" class="m-action primary" :disabled="processing" @click="startStack">
+                        <font-awesome-icon icon="play" /><span>{{ $t("startStack") }}</span>
+                    </button>
+                    <button v-if="active" type="button" class="m-action" :disabled="processing" @click="restartStack">
+                        <font-awesome-icon icon="rotate" /><span>{{ $t("restartStack") }}</span>
+                    </button>
+                    <button v-if="active" type="button" class="m-action" :disabled="processing" @click="stopStack">
+                        <font-awesome-icon icon="stop" /><span>{{ $t("stopStack") }}</span>
+                    </button>
+                    <button type="button" class="m-action" :disabled="processing" @click="updateStack">
+                        <font-awesome-icon icon="cloud-arrow-down" /><span>{{ $t("updateStack") }}</span>
+                    </button>
+                    <button type="button" class="m-action" :disabled="processing" @click="enableEditMode">
+                        <font-awesome-icon icon="pen" /><span>{{ $t("editStack") }}</span>
+                    </button>
+                </template>
+            </nav>
+
+            <!-- Port conflict check before Save / Deploy -->
+            <BModal v-model="showPortConflictDialog" :title="$t('portInUseTitle')" :cancelTitle="$t('cancel')" :okTitle="$t(pendingPortAction === 'deploy' ? 'deployAnyway' : 'saveAnyway')" okVariant="warning" @ok="runPendingPortAction">
+                <p>{{ $t("portInUseIntro") }}</p>
+                <ul class="ps-3">
+                    <li v-for="c in portConflictList" :key="c.port">
+                        <strong>{{ c.port }}</strong>:
+                        <template v-for="(user, i) in c.users" :key="user.name">
+                            {{ user.name }} ({{ $t(user.kind === "container" ? "portUserContainer" : user.running ? "portUserRunning" : "portUserStopped") }})<span v-if="i < c.users.length - 1">, </span>
+                        </template>
+                    </li>
+                </ul>
+                <p class="mb-0 small">{{ $t("portInUseHint") }}</p>
+            </BModal>
 
             <!-- Delete Dialog -->
             <BModal v-model="showDeleteDialog" :cancelTitle="$t('cancel')" :okTitle="$t('deleteStack')" okVariant="danger" @ok="deleteDialog">
@@ -423,7 +522,7 @@ import {
     getComposeTerminalName,
     RUNNING
 } from "../../../common/util-common";
-import { BModal } from "bootstrap-vue-next";
+import { BModal, BDropdown, BDropdownItem, BDropdownDivider } from "bootstrap-vue-next";
 import NetworkInput from "../components/NetworkInput.vue";
 import ProgressTerminal from "../components/ProgressTerminal.vue";
 import dotenv from "dotenv";
@@ -451,6 +550,9 @@ export default {
         CodeMirror,
         BModal,
         ProgressTerminal,
+        BDropdown,
+        BDropdownItem,
+        BDropdownDivider,
     },
     beforeRouteUpdate(to, from, next) {
         this.exitConfirm(next);
@@ -491,6 +593,10 @@ export default {
             envsubstJSONConfig: {},
             yamlError: "",
             processing: true,
+            showPortConflictDialog: false,
+            portConflictList: [],
+            pendingPortAction: null,
+            showProgressTerminal: false,
             combinedTerminalRows: COMBINED_TERMINAL_ROWS,
             combinedTerminalCols: COMBINED_TERMINAL_COLS,
             stack: {
@@ -513,9 +619,32 @@ export default {
             versionScanLoading: false,
             versionSyncLoading: false,
             showVersionSync: false,
+            // Mobile only: which section is on screen
+            mobileTab: [ "overview", "compose", "logs" ].includes(this.$route.query.tab) ? this.$route.query.tab : "overview",
         };
     },
     computed: {
+        mobileTabs() {
+            const tabs = [
+                { key: "overview", icon: "cubes", label: this.$t("overview") },
+                { key: "compose", icon: "file-code", label: this.$t("compose") },
+            ];
+            if (!this.isAdd || this.showProgressTerminal) {
+                tabs.push({ key: "logs", icon: "terminal", label: this.$t("logs") });
+            }
+            return tabs;
+        },
+
+        showActionBar() {
+            return this.$root.isMobile && this.stack.isManagedByDockge;
+        },
+
+        // Logs tab: the terminal fills what the top bar, tabs and action bar leave, minus the progress terminal
+        mobileTerminalHeight() {
+            const chrome = "var(--m-chrome-height) - 34px";
+            return this.showProgressTerminal ? `calc(100dvh - ${chrome} - 216px)` : `calc(100dvh - ${chrome})`;
+        },
+
         endpointDisplay() {
             return this.$root.endpointDisplayFunction(this.endpoint);
         },
@@ -579,7 +708,7 @@ export default {
             }
 
             let urls = [];
-            const allowedProtocols = ["http:", "https:"];
+            const allowedProtocols = [ "http:", "https:" ];
             for (const url of this.envsubstJSONConfig["x-dockge"].urls) {
                 let display;
                 try {
@@ -752,6 +881,22 @@ export default {
 
     },
     methods: {
+        /**
+         * Whether a section is visible. Desktop shows everything; mobile shows the selected tab.
+         * @param {string} tab Section's tab
+         * @returns {boolean} Visible
+         */
+        show(tab) {
+            return !this.$root.isMobile || this.mobileTab === tab;
+        },
+
+        // On mobile, jump to the logs so the user sees the action's output
+        showLogs() {
+            if (this.$root.isMobile) {
+                this.mobileTab = "logs";
+            }
+        },
+
         startServiceStatusTimeout() {
             clearTimeout(serviceStatusTimeout);
             serviceStatusTimeout = setTimeout(async () => {
@@ -824,7 +969,9 @@ export default {
         startComposeAction() {
             this.processing = true;
             this.submitted = true;
+            this.showProgressTerminal = true;
             this.$refs.progressTerminal?.show();
+            this.showLogs();
         },
 
         // Auto-collapses the progress terminal 10s after the action finishes (see
@@ -847,7 +994,60 @@ export default {
             });
         },
 
+        /**
+         * Ask the agent which host ports of the edited stack are already used by another stack (running or not) or
+         * by a running container, and confirm before going on. An agent without this check (older version) or an
+         * error never blocks the save.
+         * @param {"save" | "deploy"} action What to run once cleared
+         * @returns {void}
+         */
+        checkPortsThen(action) {
+            this.processing = true;
+            let settled = false;
+            const settle = (conflicts) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                this.processing = false;
+                if (conflicts.length > 0) {
+                    this.portConflictList = conflicts;
+                    this.pendingPortAction = action;
+                    this.showPortConflictDialog = true;
+                } else {
+                    this.runPortAction(action);
+                }
+            };
+            const timeout = setTimeout(() => settle([]), 5000);
+            this.$root.emitAgent(this.stack.endpoint, "checkPortConflicts", this.stack.name || "", this.stack.composeYAML, this.stack.composeENV, this.stack.composeOverrideYAML || "", (res) => {
+                clearTimeout(timeout);
+                settle(res?.ok && Array.isArray(res.conflicts) ? res.conflicts : []);
+            });
+        },
+
+        runPortAction(action) {
+            if (action === "deploy") {
+                this.doDeployStack();
+            } else {
+                this.doSaveStack();
+            }
+        },
+
+        runPendingPortAction() {
+            const action = this.pendingPortAction;
+            this.pendingPortAction = null;
+            this.runPortAction(action);
+        },
+
         deployStack() {
+            this.checkPortsThen("deploy");
+        },
+
+        saveStack() {
+            this.checkPortsThen("save");
+        },
+
+        doDeployStack() {
             if (!this.jsonConfig.services) {
                 this.$root.toastError("No services found in compose.yaml");
                 return;
@@ -885,12 +1085,12 @@ export default {
 
                 if (res.ok) {
                     this.isEditMode = false;
-                    this.$router.push(this.url);
+                    this.$router.push(this.$root.isMobile ? { path: this.url, query: { tab: "logs" } } : this.url);
                 }
             });
         },
 
-        saveStack() {
+        doSaveStack() {
             this.processing = true;
 
             this.$root.emitAgent(this.stack.endpoint, "saveStack", this.stack.name, this.stack.composeYAML, this.stack.composeENV, this.stack.composeOverrideYAML || "", this.isAdd, (res) => {
@@ -942,6 +1142,7 @@ export default {
 
         updateStack() {
             this.processing = true;
+            this.showLogs();
 
             this.$root.emitAgent(this.endpoint, "updateStack", this.stack.name, (res) => {
                 this.processing = false;
@@ -1010,6 +1211,7 @@ export default {
         discardStack() {
             this.loadStack();
             this.isEditMode = false;
+            this.mobileTab = "overview";
         },
 
         yamlToJSON(yaml) {
@@ -1065,6 +1267,7 @@ export default {
 
         enableEditMode() {
             this.isEditMode = true;
+            this.mobileTab = "compose";
         },
 
         checkYAML() {
@@ -1189,6 +1392,32 @@ export default {
     height: 200px;
 }
 
+.stack-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+
+    @media (max-width: 768px) {
+        // Full-width rows of evenly sized buttons instead of a ragged wrap
+        .btn-group {
+            width: 100%;
+
+            > .btn {
+                flex: 1 1 0;
+                padding-left: 6px;
+                padding-right: 6px;
+                white-space: nowrap;
+            }
+        }
+
+        > .btn {
+            flex: 1 1 0;
+            white-space: nowrap;
+        }
+    }
+}
+
 .editor-box {
     font-family: 'JetBrains Mono', monospace;
     font-size: 14px;
@@ -1197,5 +1426,204 @@ export default {
 .agent-name {
     font-size: 13px;
     color: $dark-font-color3;
+}
+
+// ---------- Mobile ----------
+$m-topbar: 56px;
+$m-tabs: 46px;
+$m-actionbar: 64px;
+
+.mobile-stack-page {
+    // Everything that is not the terminal on the logs tab (bars + gaps)
+    --m-chrome-height: calc(#{$m-topbar} + #{$m-tabs} + 24px + env(safe-area-inset-top));
+
+    &.has-action-bar {
+        --m-chrome-height: calc(#{$m-topbar} + #{$m-tabs} + #{$m-actionbar} + 24px + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+        padding-bottom: calc(#{$m-actionbar} + 12px + env(safe-area-inset-bottom));
+    }
+
+    h4 {
+        font-size: 1.1rem;
+    }
+
+    .m-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 1001;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: calc(#{$m-topbar} + env(safe-area-inset-top));
+        margin: 0 -12px;
+        padding: env(safe-area-inset-top) 4px 0;
+        background-color: var(--bar-bg);
+        backdrop-filter: saturate(180%) blur(12px);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+    }
+
+    .m-title {
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.2;
+
+        .m-name {
+            font-size: 17px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .m-sub {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 2px;
+
+            .badge {
+                min-width: 0;
+                font-size: 11px;
+                padding: 2px 8px;
+            }
+        }
+    }
+
+    :deep(.m-icon-btn), .m-icon-btn {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 12px;
+        background: transparent;
+        color: inherit;
+        font-size: 20px;
+        text-decoration: none;
+    }
+
+    .m-tabs {
+        position: sticky;
+        top: calc(#{$m-topbar} + env(safe-area-inset-top));
+        z-index: 1000;
+        display: flex;
+        margin: 0 -12px 12px;
+        padding: 0 8px;
+        height: $m-tabs;
+        background-color: var(--bar-bg);
+        backdrop-filter: saturate(180%) blur(12px);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        border-bottom: 1px solid var(--card-border);
+
+        button {
+            position: relative;
+            flex: 1 1 0;
+            border: none;
+            background: transparent;
+            color: inherit;
+            opacity: 0.65;
+            font-size: 15px;
+            border-bottom: 3px solid transparent;
+
+            &.selected {
+                opacity: 1;
+                font-weight: 600;
+                color: $primary;
+                border-bottom-color: $primary;
+            }
+        }
+
+        .busy-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background-color: $warning;
+            vertical-align: middle;
+            animation: busy-pulse 1s infinite alternate;
+        }
+    }
+
+    .m-action-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+        display: flex;
+        gap: 6px;
+        height: calc(#{$m-actionbar} + env(safe-area-inset-bottom));
+        padding: 6px 8px env(safe-area-inset-bottom);
+        background-color: var(--bar-bg);
+        backdrop-filter: saturate(180%) blur(12px);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        border-top: 1px solid var(--card-border);
+    }
+
+    .m-action {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        border: none;
+        border-radius: 12px;
+        background: transparent;
+        color: inherit;
+        font-size: 12px;
+
+        svg {
+            font-size: 19px;
+        }
+
+        span {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        &.primary {
+            background: $primary-gradient;
+            color: $dark-font-color2;
+            font-weight: 600;
+        }
+
+        &:active:not(:disabled) {
+            filter: brightness(0.9);
+        }
+
+        &:disabled {
+            opacity: 0.45;
+        }
+    }
+
+    .stack-urls .badge {
+        font-size: 13px;
+        padding: 6px 10px;
+        margin-bottom: 6px;
+    }
+
+    .version-sync {
+        overflow-x: auto;
+    }
+
+    .stack-agent {
+        font-size: 14px;
+        opacity: 0.85;
+    }
+
+    .unmanaged-msg {
+        padding: 16px 4px;
+    }
+}
+
+@keyframes busy-pulse {
+    from { opacity: 0.3; }
+    to { opacity: 1; }
 }
 </style>

@@ -1,14 +1,26 @@
-name: "⚠️ Ask for help (Please go to the \"Discussions\" tab to submit a Help Request)"
-description: "⚠️ Please go to the \"Discussions\" tab to submit a Help Request"
+name: "❓ Ask for help"
+description: "Get help installing, configuring or using Dockge"
+labels: [help]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  Please go to https://github.com/louislam/dockge/discussions/new?category=ask-for-help
   - type: checkboxes
     id: no-duplicate-issues
     attributes:
-      label: "Issues are for bug reports only, please go to the \"Discussions\" tab to submit a Feature Request"
+      label: "⚠️ Please verify that this question has NOT been asked before."
+      description: "Search the issues by clicking [HERE](https://github.com/Ext745/dockge/issues?q=)"
       options:
-        - label: "I understand"
+        - label: "I checked and didn't find a similar question"
           required: true
+  - type: textarea
+    id: question
+    validations:
+      required: true
+    attributes:
+      label: "📝 What do you need help with?"
+      description: "Describe what you are trying to do, what you tried, and what happened. Remove any secrets from logs and compose files."
+  - type: input
+    id: dockge-version
+    validations:
+      required: true
+    attributes:
+      label: "🐻 Dockge Version"
+      placeholder: "e.g. 2.2.0"

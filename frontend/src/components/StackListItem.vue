@@ -3,10 +3,10 @@
         <Uptime :stack="stack" :fixed-width="true" class="me-2" />
         <div class="title-and-ports">
             <span class="title" :class="{ 'port-conflict': hasPortConflict }">{{ stackName }}</span>
-            <span v-if="displayPorts.length > 0" class="ports">
-                <span class="port-label" :class="{ 'port-conflict': hasPortConflict }">Configured Ports:</span>
-                <span v-for="port in displayPorts" :key="port" class="badge port-badge" :class="{ 'port-conflict-badge': conflictingPorts.has(port) }">{{ port }}</span>
-                <span v-if="overflowCount > 0" class="badge port-badge port-overflow">+{{ overflowCount }}</span>
+            <span v-if="orderedPorts.length > 0" ref="ports" class="ports">
+                <span ref="portLabel" class="port-label" :class="{ 'port-conflict': hasPortConflict }">Configured Ports:</span>
+                <span v-for="port in displayPorts" :key="port" ref="portBadges" class="badge port-badge" :class="{ 'port-conflict-badge': conflictingPorts.has(port) }">{{ port }}</span>
+                <span v-if="hiddenPorts.length > 0" class="badge port-badge port-overflow" :class="{ 'port-conflict-badge': hiddenConflict }" :title="hiddenPorts.join(', ')">+{{ hiddenPorts.length }}</span>
             </span>
             <span v-else-if="isRunning" class="ports">
                 <span class="badge host-badge">HOST</span>
@@ -18,8 +18,11 @@
 <script>
 import Uptime from "./Uptime.vue";
 import { RUNNING } from "../../../common/util-common";
+import { splitPorts, stackPorts, stackUrl } from "../util-stacks";
 
-const MAX_VISIBLE_PORTS = 3;
+// Gap between badges (matches .ports gap) and room kept for the "+N" badge
+const PORT_GAP = 3;
+const OVERFLOW_BADGE_WIDTH = 28;
 
 export default {
     components: {
@@ -65,6 +68,8 @@ export default {
     data() {
         return {
             isCollapsed: true,
+            // How many port badges fit; null = not measured yet (render all to measure)
+            fitCount: null,
         };
     },
     computed: {
@@ -72,11 +77,7 @@ export default {
             return this.$root.endpointDisplayFunction(this.stack.endpoint);
         },
         url() {
-            if (this.stack.endpoint) {
-                return `/compose/${this.stack.name}/${this.stack.endpoint}`;
-            } else {
-                return `/compose/${this.stack.name}`;
-            }
+            return stackUrl(this.stack);
         },
         depthMargin() {
             return {
@@ -87,28 +88,21 @@ export default {
             return this.stack.name;
         },
         portList() {
-            if (!this.stack.ports || this.stack.ports.length === 0) {
-                return [];
-            }
-            return this.stack.ports.map(raw => {
-                const stripped = raw.split("/")[0];
-                const lastColon = stripped.lastIndexOf(":");
-                if (lastColon === -1) {
-                    return stripped;
-                }
-                const hostPart = stripped.substring(0, lastColon);
-                const ipColon = hostPart.indexOf(":");
-                if (ipColon !== -1) {
-                    return hostPart.substring(ipColon + 1);
-                }
-                return hostPart;
-            });
+            return stackPorts(this.stack);
         },
+        // Conflicting ports sort first, so a conflict is never hidden behind "+N"
+        orderedPorts() {
+            return splitPorts(this.portList, this.conflictingPorts, Infinity).visible;
+        },
+        // As many as fit on one line at the current pane width (all of them until measured)
         displayPorts() {
-            return this.portList.slice(0, MAX_VISIBLE_PORTS);
+            return this.orderedPorts.slice(0, this.fitCount ?? this.orderedPorts.length);
         },
-        overflowCount() {
-            return Math.max(0, this.portList.length - MAX_VISIBLE_PORTS);
+        hiddenPorts() {
+            return this.orderedPorts.slice(this.displayPorts.length);
+        },
+        hiddenConflict() {
+            return this.hiddenPorts.some(port => this.conflictingPorts.has(port));
         },
         isRunning() {
             return this.stack?.status === RUNNING;
@@ -118,15 +112,68 @@ export default {
         }
     },
     watch: {
+        // A different set or order of badges needs measuring again
+        orderedPorts(to, from) {
+            if (to.join() !== from.join()) {
+                this.measurePorts();
+            }
+        },
         isSelectMode() {
             // TODO: Resize the heartbeat bar, but too slow
             // this.$refs.heartbeatBar.resize();
         }
     },
-    beforeMount() {
-
+    mounted() {
+        this.badgeWidths = [];
+        this.labelWidth = 0;
+        this.resizeObserver = new ResizeObserver(() => this.fitPorts());
+        this.resizeObserver.observe(this.$el);
+        this.measurePorts();
+    },
+    beforeUnmount() {
+        this.resizeObserver?.disconnect();
     },
     methods: {
+        /**
+         * Render every badge once, record their widths, then fit them to the available width.
+         * Widths are cached, so resizing the pane only re-runs fitPorts().
+         * @returns {void}
+         */
+        measurePorts() {
+            this.fitCount = null;
+            this.$nextTick(() => {
+                const badges = this.$refs.portBadges ?? [];
+                this.badgeWidths = badges.map(el => el.offsetWidth);
+                this.labelWidth = this.$refs.portLabel?.offsetWidth ?? 0;
+                this.fitPorts();
+            });
+        },
+
+        /**
+         * Show as many badges as fit on one line, keeping room for "+N" when some are hidden.
+         * @returns {void}
+         */
+        fitPorts() {
+            const container = this.$refs.ports;
+            const total = this.badgeWidths.length;
+            if (!container || total === 0) {
+                return;
+            }
+            const available = container.clientWidth - this.labelWidth - PORT_GAP;
+            let used = 0;
+            let count = 0;
+            for (let i = 0; i < total; i++) {
+                const next = used + this.badgeWidths[i] + PORT_GAP;
+                const reserve = i < total - 1 ? OVERFLOW_BADGE_WIDTH + PORT_GAP : 0;
+                if (next + reserve > available) {
+                    break;
+                }
+                used = next;
+                count++;
+            }
+            this.fitCount = count;
+        },
+
         /**
          * Changes the collapsed value of the current stack and saves
          * it to local storage
@@ -193,6 +240,7 @@ export default {
         background-color: #cdf8f4;
     }
     .title-and-ports {
+        flex: 1 1 auto;
         display: flex;
         flex-direction: column;
         min-width: 0;
@@ -205,7 +253,8 @@ export default {
 
         .ports {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+            overflow: hidden;
             gap: 3px;
             margin-top: 2px;
         }
@@ -217,6 +266,8 @@ export default {
 }
 
 .port-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
     font-size: 0.7rem;
     font-weight: 600;
     color: $primary;
@@ -224,6 +275,7 @@ export default {
 }
 
 .port-badge {
+    flex: 0 0 auto;
     font-size: 0.7rem;
     font-weight: 500;
     padding: 2px 6px;

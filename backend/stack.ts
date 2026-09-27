@@ -2,6 +2,8 @@ import { DockgeServer } from "./dockge-server";
 import fs, { promises as fsAsync } from "fs";
 import { log } from "./log";
 import yaml from "yaml";
+import dotenv from "dotenv";
+import { stackComposePorts } from "../common/compose-ports";
 import { DockgeSocket, fileExists, ValidationError } from "./util-server";
 import path from "path";
 import {
@@ -38,6 +40,7 @@ export class Stack {
     protected combinedTerminal? : Terminal;
 
     protected static managedStackList: Map<string, Stack> = new Map();
+    protected static globalENVCache? : { at : number, vars : Record<string, string> };
 
     protected _services: Map<string, ServiceData> = new Map();
     protected _recreateNecessary: boolean = false;
@@ -113,35 +116,40 @@ export class Stack {
         };
     }
 
-    protected extractPorts() : string[] {
-        try {
-            const doc = yaml.parse(this.composeYAML);
-            if (!doc || !doc.services) {
-                return [];
-            }
-            const ports : string[] = [];
-            for (const serviceName in doc.services) {
-                const service = doc.services[serviceName];
-                if (Array.isArray(service.ports)) {
-                    for (const port of service.ports) {
-                        if (typeof port === "string") {
-                            ports.push(port);
-                        } else if (typeof port === "number") {
-                            ports.push(String(port));
-                        } else if (port && typeof port === "object" && port.published) {
-                            let entry = `${port.published}:${port.target || port.published}`;
-                            if (port.protocol) {
-                                entry += `/${port.protocol}`;
-                            }
-                            ports.push(entry);
-                        }
-                    }
-                }
-            }
-            return ports;
-        } catch (e) {
-            return [];
+    extractPorts() : string[] {
+        return stackComposePorts(this.composeYAML, this.composeOverrideYAML, this.composeVariables());
+    }
+
+    /**
+     * global.env, parsed. The stack list asks once per stack, so it is read at most once a second.
+     * @param {DockgeServer} server Server
+     * @returns {Record<string, string>} Variables
+     */
+    protected static globalVariables(server : DockgeServer) : Record<string, string> {
+        const now = Date.now();
+        if (Stack.globalENVCache && now - Stack.globalENVCache.at < 1000) {
+            return Stack.globalENVCache.vars;
         }
+        let text = "";
+        try {
+            text = fs.readFileSync(path.join(server.stacksDir, "global.env"), "utf-8");
+        } catch (e) {
+            // No global.env
+        }
+        Stack.globalENVCache = { at: now, vars: dotenv.parse(text) };
+        return Stack.globalENVCache.vars;
+    }
+
+    /**
+     * Variables docker compose substitutes into this stack: global.env, then the stack's .env on top.
+     * @param {string} composeENV .env contents to use instead of the saved file
+     * @returns {Record<string, string>} Variables
+     */
+    composeVariables(composeENV? : string) : Record<string, string> {
+        return {
+            ...Stack.globalVariables(this.server),
+            ...dotenv.parse(composeENV ?? this.composeENV),
+        };
     }
 
     /**

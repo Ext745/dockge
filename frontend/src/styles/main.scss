@@ -695,3 +695,22 @@ code {
 
 // Localization
 @import "localization.scss";
+
+// Surface colours for the mobile layout, so components can follow the theme without their own .dark rules
+:root {
+    --page-bg: #fff;
+    --card-bg: #fff;
+    --card-border: rgba(0, 0, 0, 0.08);
+    --bar-bg: rgba(255, 255, 255, 0.92);
+}
+
+.dark {
+    --page-bg: #090c10;
+    --card-bg: #{$dark-bg};
+    --card-border: #{$dark-border-color};
+    --bar-bg: rgba(22, 27, 34, 0.94);
+}
+
+.mobile {
+    --mobile-header-height: calc(56px + env(safe-area-inset-top));
+}

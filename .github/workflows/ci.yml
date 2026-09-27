@@ -2,13 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # Not a bare `push:`, which would also run on tag pushes and repeat the suite on every release
+    branches: ['**']
     paths-ignore:
       - '*.md'
   pull_request:
     branches: [master]
     paths-ignore:
       - '*.md'
+  # For a commit that only touched ignored paths: it has no CI run, and the release gate requires one
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -66,6 +66,12 @@ const routes = [
                         ]
                     },
                     {
+                        // Same page as "/" on desktop; on mobile "/" is the stack list, so this is the way to it
+                        name: "Overview",
+                        path: "/overview",
+                        component: DashboardHome,
+                    },
+                    {
                         path: "/console",
                         component: Console,
                     },

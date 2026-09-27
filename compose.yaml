@@ -1,25 +1,28 @@
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:latest
+    image: ghcr.io/ext745/dockge:2.4.0
     restart: unless-stopped
     ports:
-      # Host Port : Container Port
       - 5001:5001
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/app/data
-        
-      # If you want to use private registries, you need to share the auth file with Dockge:
-      # - /root/.docker/:/root/.docker
-
-      # Stacks Directory
-      # ⚠️ READ IT CAREFULLY. If you did it wrong, your data could end up writing into a WRONG PATH.
-      # ⚠️ 1. FULL path only. No relative path (MUST)
-      # ⚠️ 2. Left Stacks Path === Right Stacks Path (MUST)
-      - /opt/stacks:/opt/stacks
+      - /opt/docker/dockge/data:/app/data
+      - /opt/docker/stacks:/opt/docker/stacks
     environment:
-      # Tell Dockge where is your stacks directory
-      - DOCKGE_STACKS_DIR=/opt/stacks
-      # Optional — only if you want CAPTCHA on login:
-      # - TURNSTILE_SITE_KEY=<your Turnstile site key>
-      # - TURNSTILE_SECRET_KEY=<your Turnstile secret key>
+      - DOCKGE_STACKS_DIR=/opt/docker/stacks
+
+# ports: 5001 is Dockge's web UI (host:container).
+#   To listen on one address only: 192.168.1.10:5001:5001
+# /var/run/docker.sock: lets Dockge run docker compose for your stacks
+#   (root-equivalent access to Docker).
+# /opt/docker/dockge/data: Dockge's database and settings (login, agents,
+#   API keys). Back this folder up.
+# /opt/docker/stacks: your stacks. Both sides MUST be the same full path and
+#   MUST match DOCKGE_STACKS_DIR, or stack files end up in the wrong place.
+# DOCKGE_STACKS_DIR: where Dockge looks for stacks (same path as above).
+# Optional, under environment:
+#   - PUID=1000 and - PGID=1000: owner of stack files (both needed; default root)
+#   - TURNSTILE_SITE_KEY=... and - TURNSTILE_SECRET_KEY=...: CAPTCHA on login
+#   - DOCKGE_ALLOW_FRAMING=true: allow embedding in a dashboard iframe
+# Optional, under volumes:
+#   - /root/.docker/:/root/.docker: registry logins for private images

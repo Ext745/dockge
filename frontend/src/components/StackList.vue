@@ -23,9 +23,9 @@
                     </form>
                 </div>
                 <div class="drift-check-wrapper">
-                    <router-link to="/" class="btn btn-normal">
-                        <font-awesome-icon icon="code-compare" class="me-1" />
-                        {{ $t("driftCheck") }}
+                    <router-link to="/" class="btn btn-normal" :title="$t('driftCheck')" :aria-label="$t('driftCheck')">
+                        <font-awesome-icon icon="code-compare" />
+                        <span class="drift-label ms-1">{{ $t("driftCheck") }}</span>
                     </router-link>
 
                     <!-- Category filter dropdown -->
@@ -79,6 +79,7 @@
             </div>
         </div>
         <div ref="stackList" class="stack-list" :class="{ scrollbar: scrollbar }" :style="stackListStyle">
+            <PortConflictBanner class="mb-2" />
             <div v-if="agentStackList[0] && agentStackList[0].stacks.length === 0" class="text-center mt-3">
                 <router-link to="/compose">{{ $t("addFirstStackMsg") }}</router-link>
             </div>
@@ -112,12 +113,15 @@
 <script>
 import Confirm from "../components/Confirm.vue";
 import StackListItem from "../components/StackListItem.vue";
-import { CREATED_FILE, CREATED_STACK, EXITED, RUNNING, StackStatusInfo, UNKNOWN } from "../../../common/util-common";
+import { StackStatusInfo } from "../../../common/util-common";
+import PortConflictBanner from "../components/PortConflictBanner.vue";
+import { compareStacks, conflictingPortsByEndpoint } from "../util-stacks";
 
 export default {
     components: {
         Confirm,
         StackListItem,
+        PortConflictBanner,
     },
     props: {
         /** Should the scrollbar be shown */
@@ -194,41 +198,7 @@ export default {
                 return searchTextMatch && agentMatch && statusMatch;
             });
 
-            result.sort((m1, m2) => {
-
-                // sort by managed by dockge
-                if (m1.isManagedByDockge && !m2.isManagedByDockge) {
-                    return -1;
-                } else if (!m1.isManagedByDockge && m2.isManagedByDockge) {
-                    return 1;
-                }
-
-                // sort by status
-                if (m1.status !== m2.status) {
-                    if (m2.status === RUNNING) {
-                        return 1;
-                    } else if (m1.status === RUNNING) {
-                        return -1;
-                    } else if (m2.status === EXITED) {
-                        return 1;
-                    } else if (m1.status === EXITED) {
-                        return -1;
-                    } else if (m2.status === CREATED_STACK) {
-                        return 1;
-                    } else if (m1.status === CREATED_STACK) {
-                        return -1;
-                    } else if (m2.status === CREATED_FILE) {
-                        return 1;
-                    } else if (m1.status === CREATED_FILE) {
-                        return -1;
-                    } else if (m2.status === UNKNOWN) {
-                        return 1;
-                    } else if (m1.status === UNKNOWN) {
-                        return -1;
-                    }
-                }
-                return m1.name.localeCompare(m2.name);
-            });
+            result.sort(compareStacks);
 
             // Group stacks by endpoint, sorting them so the local endpoint is first
             // and the rest are sorted alphabetically
@@ -257,47 +227,7 @@ export default {
         },
 
         conflictingPortsByEndpoint() {
-            const allStacks = Object.values(this.$root.completeStackList);
-            const byEndpoint = {};
-            for (const stack of allStacks) {
-                if (!stack.ports || stack.ports.length === 0 || stack.status !== RUNNING) {
-                    continue;
-                }
-                const endpoint = stack.endpoint || "current";
-                if (!byEndpoint[endpoint]) {
-                    byEndpoint[endpoint] = {};
-                }
-                const uniquePorts = new Set(stack.ports.map(raw => {
-                    const stripped = raw.split("/")[0];
-                    const lastColon = stripped.lastIndexOf(":");
-                    if (lastColon === -1) {
-                        return stripped;
-                    }
-                    const hostPart = stripped.substring(0, lastColon);
-                    const ipColon = hostPart.indexOf(":");
-                    if (ipColon !== -1) {
-                        return hostPart.substring(ipColon + 1);
-                    }
-                    return hostPart;
-                }));
-                for (const port of uniquePorts) {
-                    if (!byEndpoint[endpoint][port]) {
-                        byEndpoint[endpoint][port] = 0;
-                    }
-                    byEndpoint[endpoint][port]++;
-                }
-            }
-            const result = {};
-            for (const [endpoint, portCounts] of Object.entries(byEndpoint)) {
-                const conflicts = new Set();
-                for (const [port, count] of Object.entries(portCounts)) {
-                    if (count > 1) {
-                        conflicts.add(port);
-                    }
-                }
-                result[endpoint] = conflicts;
-            }
-            return result;
+            return conflictingPortsByEndpoint(Object.values(this.$root.completeStackList));
         },
 
         isDarkTheme() {
@@ -472,6 +402,8 @@ export default {
 }
 
 .header-top {
+    // Lets the header adapt to the (resizable) pane width rather than the window
+    container-type: inline-size;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -544,8 +476,35 @@ export default {
 }
 
 .search-wrapper {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
+
+    form {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
+
+.drift-check-wrapper .btn {
+    white-space: nowrap;
+}
+
+.search-input {
+    min-width: 80px;
+}
+
+// Narrow pane: the drift check button drops to its icon so the search box keeps its room
+@container (max-width: 400px) {
+    .drift-label {
+        display: none;
+    }
+
+    .drift-check-wrapper .btn {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
 }
 
 .search-icon {
@@ -564,7 +523,7 @@ export default {
 }
 
 .search-input {
-    max-width: 10em;
+    width: 100%;
 }
 
 .stack-item {

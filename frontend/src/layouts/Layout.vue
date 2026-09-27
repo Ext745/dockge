@@ -16,7 +16,7 @@
                 <span class="fs-4 title">Dockge</span>
             </router-link>
 
-            <a v-if="hasNewVersion" target="_blank" href="https://github.com/Ext745/dockge/releases/tag/v2.4.0" class="btn btn-warning me-3">
+            <a v-if="hasNewVersion" target="_blank" rel="noopener noreferrer" href="https://github.com/Ext745/dockge/releases/latest" class="btn btn-warning me-3">
                 <font-awesome-icon icon="arrow-alt-circle-up" /> {{ $t("newUpdate") }}
             </a>
 
@@ -84,28 +84,56 @@
             </ul>
         </header>
 
-        <!-- Mobile bottom navigation -->
-        <nav v-if="$root.isMobile && $root.loggedIn" class="bottom-nav">
-            <router-link to="/" class="d-inline-block" :class="{ active: $route.path === '/' }">
-                <div><font-awesome-icon icon="home" /></div>
-                {{ $t("home") }}
+        <!-- Mobile header: hidden on stack pages, which bring their own back/actions bar -->
+        <header v-else-if="! mobileStackPage" class="mobile-header">
+            <router-link to="/" class="brand">
+                <object width="28" height="28" data="/icon.svg" />
+                <span class="title">Dockge</span>
             </router-link>
 
-            <router-link to="/console" class="d-inline-block" :class="{ active: $route.path.startsWith('/console') }">
-                <div><font-awesome-icon icon="terminal" /></div>
-                {{ $t("console") }}
-            </router-link>
+            <div class="header-actions">
+                <a v-if="hasNewVersion" target="_blank" rel="noopener noreferrer" href="https://github.com/Ext745/dockge/releases/latest" class="icon-btn text-warning" :aria-label="$t('newUpdate')">
+                    <font-awesome-icon icon="arrow-alt-circle-up" />
+                </a>
+                <button v-if="$root.loggedIn" type="button" class="icon-btn" :aria-label="$t('menu')" :aria-expanded="menuOpen" @click="menuOpen = true">
+                    <font-awesome-icon icon="bars" />
+                </button>
+            </div>
+        </header>
 
-            <router-link to="/settings/general" class="d-inline-block" :class="{ active: $route.path.includes('settings') }">
-                <div><font-awesome-icon icon="cog" /></div>
-                {{ $t("Settings") }}
-            </router-link>
-
-            <a href="#" class="d-inline-block" @click.prevent="$root.logout">
-                <div><font-awesome-icon icon="sign-out-alt" /></div>
-                {{ $t("Logout") }}
-            </a>
-        </nav>
+        <!-- Mobile menu sheet -->
+        <transition name="sheet">
+            <div v-if="$root.isMobile && menuOpen" class="menu-backdrop" @click.self="menuOpen = false">
+                <nav class="menu-sheet" :aria-label="$t('menu')">
+                    <div class="sheet-grip"></div>
+                    <div v-if="$root.username" class="sheet-user">
+                        <div class="profile-pic">{{ $root.usernameFirstChar }}</div>
+                        <span>{{ $root.username }}</span>
+                    </div>
+                    <router-link to="/" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="server" fixed-width /> {{ $t("stackList") }}
+                    </router-link>
+                    <router-link to="/overview" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="home" fixed-width /> {{ $t("overview") }}
+                    </router-link>
+                    <router-link to="/overview#drift-check" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="code-compare" fixed-width /> {{ $t("driftCheck") }}
+                    </router-link>
+                    <router-link to="/console" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="terminal" fixed-width /> {{ $t("console") }}
+                    </router-link>
+                    <router-link to="/settings/general" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="cog" fixed-width /> {{ $t("Settings") }}
+                    </router-link>
+                    <button type="button" class="sheet-item" @click="scanFolder(); menuOpen = false">
+                        <font-awesome-icon icon="arrows-rotate" fixed-width /> {{ $t("scanFolder") }}
+                    </button>
+                    <button type="button" class="sheet-item" @click="menuOpen = false; $root.logout()">
+                        <font-awesome-icon icon="sign-out-alt" fixed-width /> {{ $t("Logout") }}
+                    </button>
+                </nav>
+            </div>
+        </transition>
 
         <main>
             <div v-if="$root.socketIO.connecting" class="container mt-5">
@@ -131,7 +159,7 @@ export default {
 
     data() {
         return {
-
+            menuOpen: false,
         };
     },
 
@@ -145,6 +173,11 @@ export default {
             return classes;
         },
 
+        // Stack pages (and container terminals) on mobile render their own top bar
+        mobileStackPage() {
+            return this.$root.isMobile && (this.$route.path.startsWith("/compose") || this.$route.path.startsWith("/terminal"));
+        },
+
         hasNewVersion() {
             if (this.$root.info.latestVersion && this.$root.info.version) {
                 return compareVersions(this.$root.info.latestVersion, this.$root.info.version) >= 1;
@@ -156,7 +189,9 @@ export default {
     },
 
     watch: {
-
+        $route() {
+            this.menuOpen = false;
+        },
     },
 
     mounted() {
@@ -187,47 +222,152 @@ export default {
     }
 }
 
-.bottom-nav {
-    z-index: 1000;
-    position: fixed;
-    bottom: 0;
-    height: calc(60px + env(safe-area-inset-bottom));
-    width: 100%;
-    left: 0;
-    background-color: #fff;
-    box-shadow: 0 15px 47px 0 rgba(0, 0, 0, 0.05), 0 5px 14px 0 rgba(0, 0, 0, 0.05);
-    text-align: center;
-    white-space: nowrap;
-    padding: 0 10px env(safe-area-inset-bottom);
-
-    a {
-        text-align: center;
-        width: 25%;
-        display: inline-block;
-        height: 100%;
-        padding: 8px 10px 0;
-        font-size: 13px;
-        color: #c1c1c1;
-        overflow: hidden;
-        text-decoration: none;
-
-        &.router-link-exact-active, &.active {
-            color: $primary;
-            font-weight: bold;
-        }
-
-        div {
-            font-size: 20px;
-        }
-    }
-}
-
 main {
     min-height: calc(100vh - 160px);
 }
 
 .mobile main {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+    min-height: 0;
+}
+
+.mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: calc(56px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 8px 0 16px;
+    background-color: var(--bar-bg);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--card-border);
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: inherit;
+        text-decoration: none;
+        font-size: 1.15rem;
+
+        // The <object> logo would otherwise swallow taps meant for the home link
+        object {
+            pointer-events: none;
+        }
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+    }
+}
+
+.icon-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: inherit;
+    font-size: 20px;
+
+    &:active {
+        background-color: rgba(128, 128, 128, 0.15);
+    }
+}
+
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: flex-end;
+}
+
+.menu-sheet {
+    width: 100%;
+    padding: 8px 12px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    background-color: var(--card-bg);
+    display: flex;
+    flex-direction: column;
+
+    .sheet-grip {
+        align-self: center;
+        width: 40px;
+        height: 5px;
+        border-radius: 3px;
+        margin-bottom: 8px;
+        background-color: rgba(128, 128, 128, 0.4);
+    }
+
+    .sheet-user {
+        .profile-pic {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: white;
+            background-color: $primary;
+            font-weight: bold;
+        }
+
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px 12px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--card-border);
+        margin-bottom: 4px;
+    }
+
+    .sheet-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 52px;
+        padding: 0 12px;
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        text-decoration: none;
+        font-size: 16px;
+
+        &.router-link-exact-active {
+            color: $primary;
+            font-weight: 600;
+        }
+
+        &:active {
+            background-color: rgba(128, 128, 128, 0.15);
+        }
+    }
+}
+
+.sheet-enter-active, .sheet-leave-active {
+    transition: opacity 0.2s;
+
+    .menu-sheet {
+        transition: transform 0.2s $easing-out;
+    }
+}
+
+.sheet-enter-from, .sheet-leave-to {
+    opacity: 0;
+
+    .menu-sheet {
+        transform: translateY(100%);
+    }
 }
 
 .title {
@@ -332,8 +472,5 @@ main {
         }
     }
 
-    .bottom-nav {
-        background-color: $dark-bg;
-    }
 }
 </style>

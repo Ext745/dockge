@@ -6,6 +6,9 @@ import { Stack } from "../stack";
 import { AgentSocketHandler } from "../agent-socket-handler";
 import { AgentSocket } from "../../common/agent-socket";
 
+const MAX_TERMINAL_ROWS = 500;
+const MAX_TERMINAL_COLS = 1000;
+
 export class TerminalSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
 
@@ -179,11 +182,12 @@ export class TerminalSocketHandler extends AgentSocketHandler {
                     throw new Error("Terminal name must be a string.");
                 }
 
-                if (typeof rows !== "number") {
-                    throw new Error("Command must be a number.");
+                // Bound the size: an arbitrary number from the client is passed straight to the pty
+                if (!Number.isInteger(rows) || (rows as number) < 1 || (rows as number) > MAX_TERMINAL_ROWS) {
+                    throw new Error(`Rows must be an integer from 1 to ${MAX_TERMINAL_ROWS}.`);
                 }
-                if (typeof cols !== "number") {
-                    throw new Error("Command must be a number.");
+                if (!Number.isInteger(cols) || (cols as number) < 1 || (cols as number) > MAX_TERMINAL_COLS) {
+                    throw new Error(`Cols must be an integer from 1 to ${MAX_TERMINAL_COLS}.`);
                 }
 
                 let terminal = Terminal.getTerminal(terminalName);
@@ -191,8 +195,8 @@ export class TerminalSocketHandler extends AgentSocketHandler {
                 // log.info("terminal", terminal);
                 if (terminal instanceof Terminal) {
                     //log.debug("terminalInput", "Terminal found, writing to terminal.");
-                    terminal.rows = rows;
-                    terminal.cols = cols;
+                    terminal.rows = rows as number;
+                    terminal.cols = cols as number;
                 } else {
                     throw new Error(`${terminalName} Terminal not found.`);
                 }

@@ -1,6 +1,7 @@
 name: Docker Release (GHCR)
 
 on:
+  # Manual re-publish of the current default-branch version (e.g. after a base image rebuild)
   workflow_dispatch:
   push:
     tags:
@@ -13,7 +14,78 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Read-only checks, kept out of the job that holds packages: write
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Dev builds (tag v<x.y.z>-dev.<n>) may come from a feature branch; everything else is default-branch only
+          if [ "$EVENT" = "push" ] && printf '%s' "$GITHUB_REF_NAME" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$'; then
+            echo "Dev pre-release tag $GITHUB_REF_NAME: branch check skipped."
+            exit 0
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on $DEFAULT_BRANCH. Releases come from the default branch only; use a v<x.y.z>-dev.<n> tag for a branch build."
+            exit 1
+          fi
+
+      - name: Verify tag matches the version in the tagged commit
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          if [ -z "$version" ]; then
+            echo "::error::No version found in package.json. Refusing to publish."
+            exit 1
+          fi
+          if [ "v${version}" != "$TAG" ]; then
+            echo "::error::Tag $TAG is on a commit that declares ${version}. Merge the release first, then tag the merged commit."
+            exit 1
+          fi
+
+      - name: Require a passing CI run for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Tagging right after the merge is normal, so wait for a CI run that is still in progress
+          for attempt in $(seq 1 40); do
+            runs=$(gh api "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=100" \
+              --jq '.workflow_runs[] | "\(.status) \(.conclusion)"')
+            if printf '%s\n' "$runs" | awk '$2 == "success" { hit = 1 } END { exit !hit }'; then
+              echo "CI passed for ${SHA}."
+              exit 0
+            fi
+            if ! printf '%s\n' "$runs" | grep -qE '^(queued|in_progress|waiting|pending|requested) '; then
+              break
+            fi
+            echo "CI still running for ${SHA} (attempt ${attempt}/40), waiting..."
+            sleep 30
+          done
+          echo "::error::CI never passed for ${SHA}. If this commit only changed ignored paths, run the CI workflow on it manually (workflow_dispatch) and re-run this release."
+          exit 1
+
   release-ghcr:
+    needs: gate
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -23,20 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-
-      - name: Verify tag is on default branch
-        if: github.event_name == 'push'
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
-            echo "Tag $GITHUB_REF_NAME is not on $DEFAULT_BRANCH."
-            echo "Releases come from the default branch only."
-            exit 1
-          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -60,34 +119,41 @@ jobs:
         run: npm clean-install --no-fund
 
       - name: Read version from package.json
-        id: version
         run: |
           set -euo pipefail
           echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
 
-      - name: Determine if pre-release
-        id: prerelease
+      - name: Determine release channel
         run: |
           set -euo pipefail
-          if echo "$VERSION" | grep -qE '(alpha|beta|rc|dev)'; then
-            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          # dev -> :dev + :<version>; alpha/beta/rc -> :beta + :<version>; stable -> :latest + :<version>
+          if echo "$VERSION" | grep -qE -- '-dev\.[0-9]+$'; then
+            echo "CHANNEL=dev" >> "$GITHUB_ENV"
+          elif echo "$VERSION" | grep -qE '(alpha|beta|rc)'; then
+            echo "CHANNEL=beta" >> "$GITHUB_ENV"
           else
-            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+            echo "CHANNEL=stable" >> "$GITHUB_ENV"
           fi
 
       - name: Build frontend
         run: npm run build:frontend
 
       - name: Build and push image (stable)
-        if: env.IS_PRERELEASE == 'false'
+        if: env.CHANNEL == 'stable'
         run: npm run build:docker
 
       - name: Build and push image (pre-release)
-        if: env.IS_PRERELEASE == 'true'
+        if: env.CHANNEL == 'beta'
         run: npm run build:docker-beta
 
+      - name: Build and push image (dev)
+        if: env.CHANNEL == 'dev'
+        run: npm run build:docker-dev
+
       - name: Verify image was pushed
+        env:
+          OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LC=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
           docker buildx imagetools inspect "ghcr.io/${OWNER_LC}/dockge:${VERSION}"

@@ -1,7 +1,7 @@
 <template>
-    <div class="shadow-box big-padding mb-3 container">
+    <div class="shadow-box big-padding mb-3 container" :class="{ 'is-mobile': $root.isMobile }">
         <div class="row">
-            <div class="col-5">
+            <div :class="$root.isMobile ? 'col-12' : 'col-5'">
                 <h4>{{ name }}</h4>
                 <div class="image mb-2">
                     <span class="me-1">{{ imageName }}:</span><span class="tag">{{ imageTag }}</span>
@@ -14,7 +14,7 @@
                     </a>
                 </div>
             </div>
-            <div class="col-7">
+            <div :class="$root.isMobile ? 'col-12 mt-2' : 'col-7'">
                 <div class="function">
                     <div class="btn-group me-2" role="group">
                         <router-link v-if="!isEditMode && (status === 'running' || status === 'healthy')" class="btn btn-normal" :to="terminalRouteLink" disabled="">
@@ -451,6 +451,34 @@ export default defineComponent({
     .stats {
         font-size: 0.8rem;
         color: #6c757d;
+    }
+
+    // Phones: name and status on top, then a full-width row of evenly sized actions
+    &.is-mobile {
+        &.big-padding {
+            padding: 14px;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            overflow-wrap: anywhere;
+        }
+
+        .function {
+            justify-content: stretch;
+
+            .btn-group {
+                width: 100%;
+                margin-right: 0 !important;
+
+                > .btn {
+                    flex: 1 1 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    white-space: nowrap;
+                }
+            }
+        }
     }
 }
 </style>

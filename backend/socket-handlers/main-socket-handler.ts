@@ -49,6 +49,9 @@ async function verifyTurnstileToken(token: string, clientIP: string, secretKey: 
     return false;
 }
 
+// Serialises first-run setup across all sockets (see the "setup" handler)
+let setupInProgress = false;
+
 export class MainSocketHandler extends SocketHandler {
     create(socket : DockgeSocket, server : DockgeServer) {
 
@@ -58,7 +61,23 @@ export class MainSocketHandler extends SocketHandler {
 
         // Setup
         socket.on("setup", async (username, password, callback) => {
+            if (typeof callback !== "function") {
+                return;
+            }
+            // Count-then-insert is not atomic: without this, two setup requests racing on a fresh
+            // install could both see zero users and each create an admin account.
+            if (setupInProgress) {
+                callback({
+                    ok: false,
+                    msg: "Setup is already in progress.",
+                });
+                return;
+            }
+            setupInProgress = true;
             try {
+                if (typeof username !== "string" || username.trim() === "" || typeof password !== "string") {
+                    throw new Error("Username and password are required.");
+                }
                 if (passwordStrength(password).value === "Too weak") {
                     throw new Error("Password is too weak. It should contain alphabetic and numeric characters. It must be at least 6 characters in length.");
                 }
@@ -87,6 +106,8 @@ export class MainSocketHandler extends SocketHandler {
                         msg: e.message,
                     });
                 }
+            } finally {
+                setupInProgress = false;
             }
         });
 

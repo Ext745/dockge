@@ -201,6 +201,20 @@ export class DockgeServer {
             this.httpServer = http.createServer(this.app);
         }
 
+        // Security headers. Dockge controls the Docker daemon, so by default it must not be framable by
+        // other sites (clickjacking). DOCKGE_ALLOW_FRAMING=true opts out, for embedding in dashboards.
+        this.app.disable("x-powered-by");
+        const allowFraming = process.env.DOCKGE_ALLOW_FRAMING === "true";
+        this.app.use((_req, res, next) => {
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            res.setHeader("Referrer-Policy", "same-origin");
+            if (!allowFraming) {
+                res.setHeader("X-Frame-Options", "SAMEORIGIN");
+                res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
+            }
+            next();
+        });
+
         // Binding Routers
         for (const router of this.routerList) {
             this.app.use(router.create(this.app, this));

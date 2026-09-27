@@ -8,6 +8,87 @@ A fancy, easy-to-use and reactive self-hosted docker compose.yaml stack-oriented
 
 [![GitHub Repo stars](https://img.shields.io/github/stars/Ext745/dockge?logo=github&style=flat)](https://github.com/Ext745/dockge) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Ext745/dockge?label=release)](https://github.com/Ext745/dockge/releases) [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Ext745/dockge/master?logo=github)](https://github.com/Ext745/dockge/commits/master/)
 
+## 🆕 What's new from upstream: darthrater78 2.3.x (included since this fork's v2.5.0)
+
+Built on Louis's original design, [darthrater78/dockge](https://github.com/darthrater78/dockge) 2.3.0 adds a redesigned phone layout, a resizable stack list on desktop, port conflicts you can't miss, and a Compose Drift Check that works everywhere. Full list in [darthrater78's release notes](https://github.com/darthrater78/dockge#release-notes). This fork's own additions are in the "This fork — Ext745/dockge" section below.
+
+**2.3.1** catches the port conflicts 2.3.0 could miss (ports set through `.env` variables, `compose.override.yaml`, port ranges) and checks your ports when you Save or Deploy a stack. [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.3.1)
+
+<a id="mobile"></a>
+
+### 📱 Mobile
+
+On a phone, Dockge is built around one job: **find a stack → open it → edit it or act on it → watch what happens.**
+
+<p align="center">
+  <img src="docs/images/mobile-flow.gif" width="300" alt="Searching for a stack, opening it, restarting it and watching the logs on a phone" />
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/images/mobile-stack-list.png" width="240" alt="Mobile stack list with search, filters and port conflict banner" /><br /><b>Find</b></td>
+    <td align="center" width="33%"><img src="docs/images/mobile-stack-overview.png" width="240" alt="Stack overview tab with containers and bottom action bar" /><br /><b>Open</b></td>
+    <td align="center" width="33%"><img src="docs/images/mobile-stack-logs.png" width="240" alt="Logs tab filling the screen" /><br /><b>Watch</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/mobile-stack-edit.png" width="240" alt="Editing compose.yaml with Deploy, Save and Discard" /><br /><b>Edit</b></td>
+    <td align="center"><img src="docs/images/mobile-stack-menu.png" width="240" alt="More actions menu: Update, Compose Drift Check, Down, Delete" /><br /><b>More actions</b></td>
+    <td align="center"><img src="docs/images/mobile-drift-check.png" width="240" alt="Compose Drift Check results as cards" /><br /><b>Drift check</b></td>
+  </tr>
+</table>
+
+- **The stack list is the home screen.** Search by stack name, agent or port; filter by status (Active / Exited / Inactive, with counts) or by **Port conflicts**. Each stack is one card: status, name and its host ports, conflicting ports first and in red.
+- **One section per agent.** With more than one Dockge agent, stacks are grouped under a collapsible header per agent showing running / total counts. Sections start collapsed; searching or filtering opens them so matches are never hidden.
+- **Port conflict banner** at the top of the list names each conflicting port and the stacks publishing it (tap a name to open that stack).
+- **Stack page:** a top bar with back, name and status, and a ⋮ menu for the less common actions (Update, Compose Drift Check, Down, Delete). Three tabs:
+  - **Overview:** which agent the stack runs on, its URLs, and each container with its status, ports and Bash / Restart / Stop.
+  - **Compose:** `compose.yaml`, `.env` and `compose.override.yaml` when present.
+  - **Logs:** the combined stack log, filling the screen (expandable to full screen).
+- **Bottom action bar**, where your thumb is: **Start** or **Restart**, **Stop**, **Update**, **Edit**. While editing it becomes **Deploy**, **Save** and **Discard**. Any action switches to the Logs tab so you see its output live, and the tab shows a dot while it runs.
+- **Menu (☰)** for Stacks, Overview, Compose Drift Check, Console, Settings, Scan Stacks Folder and Logout, so the bottom of the screen is free for the stack actions.
+- **Compose Drift Check** is one tap away (the button beside the search box); on a phone its results are cards with the compose and running image and a Sync button.
+
+<a id="desktop"></a>
+
+### 🖥️ Desktop
+
+**Resizable stack list.** Drag the handle between the stack list and the page to make the list wider or narrower (arrow keys work when the handle is focused; double-click resets it). The width is remembered. Port badges show as many ports as fit the current width, with the rest behind "+N", and a conflicting port is always shown first. When the list gets narrow, the Compose Drift Check button shrinks to its icon so the search box keeps its room.
+
+<p align="center">
+  <img src="docs/images/desktop-sidebar-resize.gif" width="760" alt="Dragging the stack list wider and narrower; port badges re-fit as it moves" />
+</p>
+
+**Resizable terminals** (since 2.2.0). Every terminal panel (stack logs, console, container shell) has a drag handle to make it taller and a button to expand it to full screen; Esc restores it. Each page remembers its own height.
+
+<p align="center">
+  <img src="docs/images/desktop-terminal-resize.gif" width="760" alt="Dragging a stack's terminal taller, expanding it to full screen and restoring it" />
+</p>
+
+**Port conflicts at a glance.** The banner above the stack list lists every host port that more than one running stack publishes, per agent, with links to the stacks involved.
+
+<p align="center">
+  <img src="docs/images/desktop-stack.png" width="760" alt="Desktop stack page with the port conflict banner above the stack list" />
+</p>
+
+<a id="drift-check"></a>
+
+### 🔄 Compose Drift Check
+
+Compose Drift Check (added in this fork in 1.7.0) finds services whose `compose.yaml` pins a different image tag than the container actually running, and **Sync** writes the running tag back into the compose file (comments preserved). In 2.3.0:
+
+- **"Scan All" no longer times out.** It used to run `docker ps` plus two `docker inspect` calls *per container, for every stack*, so any host with more than a handful of containers hit the 30-second limit. A scan now makes three docker calls in total and finishes in a couple of seconds.
+- **On phones** it's one tap from the stack list (the button beside the search box, or ☰ → Compose Drift Check), and per stack from the ⋮ menu.
+- **Results fit the space.** Each mismatch is a card (stack / service, compose image, running image, Sync) on phones and whenever the panel is too narrow for the table, so the Sync button is never scrolled out of view.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/desktop-drift-check.gif" width="480" alt="Scan All finds two mismatches; Sync fixes one" /><br /><b>Desktop:</b> Scan All, then Sync</td>
+    <td align="center"><img src="docs/images/mobile-drift-check.gif" width="260" alt="Drift check on a phone: scan, cards, Sync" /><br /><b>Phone:</b> from the stack list</td>
+  </tr>
+</table>
+
+---
+
 <img src="https://github.com/louislam/dockge/assets/1336778/26a583e1-ecb1-4a8d-aedf-76157d714ad7" width="900" alt="" />
 
 View Video: https://youtu.be/AWAlOQeNpgU?t=48
@@ -38,12 +119,16 @@ Along the way, several pre-existing bugs in darthrater78's codebase were found a
 
 **Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78's stack list already reflows usably on phone-width viewports via CSS grid). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
-This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.1.0** (port-conflict-detection badges, resizable terminal panel, mobile navigation fix, CVE dependency overrides).
+This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy).
 
 ---
 
 ## ⭐ Features
 
+- 📱 (2.3.0 🆕) Mobile-first phone layout — find a stack, edit it, act on it and watch its logs, all within thumb reach ([details](#mobile))
+- ↔️ (2.3.0 🆕) Resizable stack list on desktop, with port badges that fill whatever width you give it ([details](#desktop))
+- 🚦 (2.3.0 🆕) Port conflict banner — every host port published by more than one running stack, and which stacks they are
+- 🛑 (2.3.1 🆕) Port check on Save and Deploy — warns when a host port is already used by another stack (running or not) or a running container, including ports set through `.env` variables, `compose.override.yaml` and port ranges
 - 🧑‍💼 Manage your `compose.yaml` files
   - Create/Edit/Start/Stop/Restart/Update/Delete
 - ⌨️ Interactive Editor for `compose.yaml`
@@ -54,7 +139,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🧩 (1.5.1 🆕) Compose override editor - Edit `compose.override.yaml` alongside your main compose file, when present
 - 🔐 (1.5.1 🆕) Optional Cloudflare Turnstile CAPTCHA on login
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
-- 🔄 (1.7.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files
+- 🔄 (1.7.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files (2.3.0: fast "Scan All", works on phones — [details](#drift-check))
 - 🔑 (1.9.0 🆕) Two-Factor Authentication (TOTP) — protect your account with app-based 2FA
 - 🐳 (Ext745/dockge 🆕) Agent Maintenance UI — manage containers, images, networks, and volumes per agent, with live terminal output
 - 🙈 (Ext745/dockge 🆕) Ignore-service-status toggle — exclude specific services from a stack's aggregate status badge
@@ -90,89 +175,112 @@ Requirements:
 
 ### Basic
 
-- Default Stacks Directory: `/opt/stacks`
-- Default Port: 5001
+- Compose file and Dockge's data: `/opt/docker/dockge`
+- Stacks directory: `/opt/docker/stacks`
+- Port: 5001
 
-```
-# Create directories that store your stacks and stores Dockge's stack
-mkdir -p /opt/stacks /opt/dockge
-cd /opt/dockge
+```bash
+# Create the folders (needs root under /opt), make Dockge's folder yours, and go there
+sudo mkdir -p /opt/docker/dockge/data /opt/docker/stacks \
+  && sudo chown "$USER": /opt/docker/dockge && cd /opt/docker/dockge
 
-# Download the compose.yaml
+# Download the compose file (saved as compose.yaml)
 curl https://raw.githubusercontent.com/Ext745/dockge/master/compose.yaml --output compose.yaml
 
-# Start the server
+# Start Dockge
 docker compose up -d
-
-# If you are using docker-compose V1 or Podman
-# docker-compose up -d
 ```
 
 Dockge is now running on http://localhost:5001
 
+Already running Dockge from another folder (such as `/opt/dockge` from older instructions)? Nothing needs to move; these paths are just the recommended layout for new installs.
+
 ### Advanced
 
-If you want to store your stacks in another directory, you can generate your compose.yaml file by using the following URL with custom query strings.
+To use a different stacks directory or port, generate a compose file with the [interactive generator](https://dockge.kuma.pet) or its URL, and save it in `/opt/docker/dockge`:
 
-```
-# Download your compose.yaml
-curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/stacks" --output compose.yaml
-```
-
-- port=`5001`
-- stacksPath=`/opt/stacks`
-
-Also, once compose is generated/downloaded, add the `PUID` and `PGID` section below to your compose `environment:` section to set stack ownership, otherwise default is `root`
-
-```
-      # Both PUID and PGID must be set for it to do anything
-      - PUID=1000 # Set the stack file/dir ownership to this user
-      - PGID=1000 # Set the stack file/dir ownership to this group
+```bash
+curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Interactive compose.yaml generator is available on: 
-https://dockge.kuma.pet
+Then set its `image:` to `ghcr.io/ext745/dockge:2.4.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
-### -OR-
-Copy and paste your compose from the following:
-
-If you want to store your stacks in another directory, you can change the `DOCKGE_STACKS_DIR` environment variable and volumes.
-
-compose:
+```yaml
+      - PUID=1000
+      - PGID=1000
 ```
+
+### -OR- copy and paste
+
+Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo mkdir -p /opt/docker/dockge/data /opt/docker/stacks && sudo chown "$USER": /opt/docker/dockge`), then run `docker compose up -d` in that folder:
+
+```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:latest
+    image: ghcr.io/ext745/dockge:2.4.0
     restart: unless-stopped
     ports:
-      # Host Port:Container Port
       - 5001:5001
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/app/data
-        
-      # If you want to use private registries, you need to share the auth file with Dockge:
-      # - /root/.docker/:/root/.docker
-
-      # Stacks Directory
-      # Your stacks directory in the host (The paths inside container must be the same as the host)
-      # ⚠️ If you did it wrong, your data could end up be written into a wrong path.
-      # ✔️ CORRECT EXAMPLE: - /my-stacks:/my-stacks (Both paths match)
-      # ❌ WRONG EXAMPLE: - /docker:/my-stacks (Both paths do not match)
-      - /opt/stacks:/opt/stacks
+      - /opt/docker/dockge/data:/app/data
+      - /opt/docker/stacks:/opt/docker/stacks
     environment:
-      # Tell Dockge where your stacks directory is
-      - DOCKGE_STACKS_DIR=/opt/stacks
-      # Both PUID and PGID must be set for it to do anything
-      - PUID=1000 # Set the stack file/dir ownership to this user
-      - PGID=1000 # Set the stack file/dir ownership to this group
+      - DOCKGE_STACKS_DIR=/opt/docker/stacks
+
+# ports: 5001 is Dockge's web UI (host:container).
+#   To listen on one address only: 192.168.1.10:5001:5001
+# /var/run/docker.sock: lets Dockge run docker compose for your stacks
+#   (root-equivalent access to Docker).
+# /opt/docker/dockge/data: Dockge's database and settings (login, agents,
+#   API keys). Back this folder up.
+# /opt/docker/stacks: your stacks. Both sides MUST be the same full path and
+#   MUST match DOCKGE_STACKS_DIR, or stack files end up in the wrong place.
+# DOCKGE_STACKS_DIR: where Dockge looks for stacks (same path as above).
+# Optional, under environment:
+#   - PUID=1000 and - PGID=1000: owner of stack files (both needed; default root)
+#   - TURNSTILE_SITE_KEY=... and - TURNSTILE_SECRET_KEY=...: CAPTCHA on login
+#   - DOCKGE_ALLOW_FRAMING=true: allow embedding in a dashboard iframe
+# Optional, under volumes:
+#   - /root/.docker/:/root/.docker: registry logins for private images
 ```
 
 ## How to Update
 
+The compose file pins a release (`ghcr.io/ext745/dockge:2.4.0`) so an update never happens by surprise.
+
+### One-line update
+
+Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
+
 ```bash
-cd /opt/dockge
-docker compose pull && docker compose up -d
+V=2.4.0; F=/opt/docker/dockge/compose.yaml
+S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
+  && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
+  && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
+  && echo "✅ Dockge updated to $V" || echo "❌ Update stopped: see the error above"
+```
+
+1. **Pulls the new image first.** If that version doesn't exist, it stops before anything changes.
+2. **Changes only the image tag** in your compose file, keeping the original as `compose.yaml.bak`. Ports, volumes and environment are untouched.
+3. **Recreates the Dockge container** on the new image and shows its status. Your stacks keep running; only Dockge restarts.
+
+It works from any folder, and uses `sudo` automatically if your user isn't allowed to run `docker` directly. Roll back with `mv /opt/docker/dockge/compose.yaml.bak /opt/docker/dockge/compose.yaml` and the same `docker compose -f … up -d dockge`.
+
+**Compose file somewhere else?** Ask Docker where it was started from, and use that path as `F`:
+
+```bash
+sudo docker ps -a \
+  --format '{{.Names}}  →  {{.Label "com.docker.compose.project.config_files"}}' \
+  | grep -i dockge
+```
+
+### Always on the newest release
+
+Prefer not to pin? Use `ghcr.io/ext745/dockge:latest` in your compose file, then update with:
+
+```bash
+cd /opt/docker/dockge && docker compose pull && docker compose up -d
 ```
 
 ## Optional: Cloudflare Turnstile CAPTCHA
@@ -186,7 +294,41 @@ To require a CAPTCHA challenge on the login page, set both of the following envi
 
 Keys can be created in the [Cloudflare dashboard](https://developers.cloudflare.com/turnstile/get-started/).
 
+## Optional: Embedding Dockge in a dashboard
+
+By default Dockge refuses to be shown inside an iframe on another site (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`), because a page that frames it could trick you into clicking Docker actions. If you embed Dockge in a dashboard such as Home Assistant or Organizr, set:
+
+```
+      - DOCKGE_ALLOW_FRAMING=true
+```
+
+Only do this if Dockge is not reachable from untrusted networks.
+
+## Optional: Home Assistant integration (HACS)
+
+**[darthrater78/ha-dockge](https://github.com/darthrater78/ha-dockge)** is a custom Home Assistant integration that adds your Dockge stacks and containers to Home Assistant so you can watch and control them from there:
+
+- A sensor for each container showing its state (running, exited, etc.), image and health
+- Start, Stop, Restart and Down buttons for each stack
+- `dockge.start_stack`, `dockge.stop_stack`, `dockge.restart_stack` and `dockge.system_prune` services for automations
+- Support for multiple Dockge agents, each shown as its own device
+
+**This fork is required.** The integration talks to Dockge through the [REST API](#rest-api), which the original Dockge does not have.
+
+The integration is not in the default HACS store. Add it to HACS as a custom repository:
+
+1. In Dockge, set an API key (`DOCKGE_API_KEY`, see [Authentication](#authentication)).
+2. In HACS, open the menu (three dots, top right) and choose **Custom repositories**. Add `https://github.com/darthrater78/ha-dockge` with category **Integration**.
+3. Download **Dockge** in HACS and restart Home Assistant.
+4. Go to **Settings > Devices & Services > Add Integration**, search for **Dockge**, and enter your Dockge URL (for example `http://192.168.1.100:5001`) and the API key.
+
+Use an `https://` URL where you can: the API key is sent with every request. For a dashboard card, see [Dockge Card](https://github.com/darthrater78/dockge-card).
+
+<a id="rest-api"></a>
+
 ## REST API
+
+*The API framework is ported from [finder39/dockge](https://github.com/finder39/dockge) ("Dockge Managed"), which wrote the original API router, auto-update scheduler and update history; it was adapted to this fork's architecture in v1.6.0.*
 
 Dockge v1.6.0 introduces a REST API for managing stacks programmatically. The API runs on the master node only — agents do not need any changes and continue to communicate via Socket.IO.
 
@@ -273,13 +415,15 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 - Stack listing falls back to legacy call signatures
 - Unsupported agents are listed in the response so you know which nodes need upgrading
 
-**Compose Drift Check requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Compose Drift Check to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
+**Compose Drift Check requires v1.7.0 on all instances.** The master Dockge and every agent must run v1.7.0 or later for Compose Drift Check to work. The scan and sync commands are registered as new socket events (`scanVersionSync`, `syncVersion`, `syncAllVersions`, `revertVersionSync`) — agents running older versions will not respond to these events. The global scan on the Home page (on phones: ☰ → Compose Drift Check, or the button beside the stack search) only contacts agents that are online; offline or pre-1.7.0 agents are skipped with a warning.
+
+**Save/Deploy port check (v2.3.1):** a web UI check (the REST API deploys without it). It runs on the agent that owns the stack (new socket event `checkPortConflicts`). An agent older than 2.3.1 does not answer it, so the save goes ahead after 5 seconds without a warning.
 
 **Agent credential encryption (v1.9.0):** Agent passwords are now encrypted at rest using AES-256-GCM. A one-time migration encrypts existing plaintext passwords on first startup. Remote agents do not need updating — the wire protocol is unchanged. However, rolling back the primary to a pre-1.9.0 version after migration will break agent authentication; back up the SQLite database before upgrading.
 
 ## Version History
 
-This fork's own changes are listed in the "This fork — Ext745/dockge" section near the top of this README. For the full darthrater78 version history (v1.5.1 through v2.1.0), see [their README](https://github.com/darthrater78/dockge/blob/master/README.md#version-history).
+This fork's own changes are listed in the "This fork — Ext745/dockge" section near the top of this README. For the full darthrater78 version history (v1.5.1 through v2.3.1), see [their README](https://github.com/darthrater78/dockge/blob/master/README.md#version-history).
 
 ## Screenshots
 
@@ -295,6 +439,8 @@ This fork's own changes are listed in the "This fork — Ext745/dockge" section 
 
 ## Motivations
 
+*From Louis Lam's original README:*
+
 - I have been using Portainer for some time, but for the stack management, I am sometimes not satisfied with it. For example, sometimes when I try to deploy a stack, the loading icon keeps spinning for a few minutes without progress. And sometimes error messages are not clear.
 - Try to develop with ES Module + TypeScript
 
@@ -308,6 +454,9 @@ https://github.com/Ext745/dockge/issues
 
 ### Ask for Help / Discussions
 https://github.com/Ext745/dockge/discussions
+
+### Security Issues
+Please report privately: https://github.com/Ext745/dockge/security/advisories/new
 
 ### Translation
 If you want to translate Dockge into your language, please read [Translation Guide](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md)
@@ -333,7 +482,7 @@ The main objective of Dockge is to try to use the docker `compose.yaml` for ever
 Yes, you can. However, you need to move your compose file into the stacks directory:
 
 1. Stop your stack
-2. Move your compose file into `/opt/stacks/<stackName>/compose.yaml`
+2. Move your compose file into `/opt/docker/stacks/<stackName>/compose.yaml` (your `DOCKGE_STACKS_DIR`)
 3. In Dockge, click the " Scan Stacks Folder" button in the top-right corner's dropdown menu
 4. Now you should see your stack in the list
 

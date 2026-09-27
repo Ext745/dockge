@@ -18,3 +18,12 @@ for (let arg of args) {
 let child = childProcess.spawn(cmd, replacedArgs);
 child.stdout.pipe(process.stdout);
 child.stderr.pipe(process.stderr);
+
+// Without this the script always exits 0, so a failed `docker buildx build --push` looks like success
+child.on("error", (err) => {
+    console.error(err.message);
+    process.exitCode = 1;
+});
+child.on("close", (code, signal) => {
+    process.exitCode = code ?? (signal ? 1 : 0);
+});

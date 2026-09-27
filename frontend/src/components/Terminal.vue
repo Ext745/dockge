@@ -139,22 +139,31 @@ export default {
             this.$root.emitAgent(this.endpoint, "mainTerminal", this.name, (res) => {
                 if (!res.ok) {
                     this.$root.toastRes(res);
+                    return;
                 }
+                this.resyncSize();
             });
         } else if (this.mode === "interactive") {
             console.debug("Create Interactive terminal:", this.name);
             this.$root.emitAgent(this.endpoint, "interactiveTerminal", this.stackName, this.serviceName, this.shell, (res) => {
                 if (!res.ok) {
                     this.$root.toastRes(res);
+                    return;
                 }
+                this.resyncSize();
             });
         }
         // Fit the terminal width to the div container size after terminal is created.
         this.updateTerminalSize();
+        this.remeasureAfterFontLoad();
     },
 
     unmounted() {
-        window.removeEventListener("resize", this.onResizeEvent); // Remove the resize event listener from the window object.
+        this.isUnmounted = true;
+        this.resizeObserver?.disconnect();
+        if (this.fitRaf) {
+            cancelAnimationFrame(this.fitRaf);
+        }
         this.$root.unbindTerminal(this.name);
         this.terminal.dispose();
         this.$refs.terminal?.removeEventListener("contextmenu", this.handleContextMenu);
@@ -290,26 +299,86 @@ export default {
         },
 
         /**
-         * Update the terminal size to fit the container size.
+         * Fit the terminal to its container and keep it fitted.
          *
-         * If the terminalFitAddOn is not created, creates it, loads it and then fits the terminal to the appropriate size.
-         * It then addes an event listener to the window object to listen for resize events and calls the fit method of the terminalFitAddOn.
+         * On first call, loads the fit addon and starts a ResizeObserver on the container, so any
+         * size change (window resize, drag handle, expand toggle, layout reflow) refits xterm.
+         * @returns {void}
          */
         updateTerminalSize() {
-            if (!Object.hasOwn(this, "terminalFitAddOn")) {
+            if (!this.terminalFitAddOn) {
                 this.terminalFitAddOn = new FitAddon();
                 this.terminal.loadAddon(this.terminalFitAddOn);
-                window.addEventListener("resize", this.onResizeEvent);
+                this.resizeObserver = new ResizeObserver(() => this.scheduleFit());
+                this.resizeObserver.observe(this.$refs.terminal);
+            }
+            this.fitAndSync();
+        },
+
+        /**
+         * xterm measures its cell size when it opens, which is usually before the web font has loaded, and
+         * does not measure again on its own. The font then renders taller than the measured cells, so the
+         * grid overflows its box and the newest lines are hidden below the bottom edge. Once the font is in,
+         * re-apply it (xterm only re-measures when the option changes) and refit.
+         * @returns {void}
+         */
+        remeasureAfterFontLoad() {
+            if (!document.fonts) {
+                return;
+            }
+            document.fonts.load(`${this.terminal.options.fontSize}px 'JetBrains Mono'`).then(() => {
+                if (this.isUnmounted) {
+                    return;
+                }
+                const fontFamily = this.terminal.options.fontFamily;
+                this.terminal.options.fontFamily = "monospace";
+                this.terminal.options.fontFamily = fontFamily;
+                this.scheduleFit();
+            }).catch(() => {
+                // Font unavailable: xterm keeps the fallback font it already measured
+            });
+        },
+
+        /**
+         * Coalesce bursts of resize notifications into one fit per animation frame.
+         * @returns {void}
+         */
+        scheduleFit() {
+            if (this.fitRaf) {
+                return;
+            }
+            this.fitRaf = requestAnimationFrame(() => {
+                this.fitRaf = null;
+                this.fitAndSync();
+            });
+        },
+
+        /**
+         * Re-send the current size, e.g. once the server has created the pty and can accept it.
+         * @returns {void}
+         */
+        resyncSize() {
+            this.syncedRows = undefined;
+            this.syncedCols = undefined;
+            this.fitAndSync();
+        },
+
+        /**
+         * Fit xterm to the container and, if the grid size changed, tell the server so the pty matches.
+         * @returns {void}
+         */
+        fitAndSync() {
+            // A hidden container (v-show, collapsed panel) has no size to fit to
+            if (!this.$refs.terminal?.offsetParent) {
+                return;
             }
             this.terminalFitAddOn.fit();
-        },
-        /**
-         * Handles the resize event of the terminal component.
-         */
-        onResizeEvent() {
-            this.terminalFitAddOn.fit();
-            let rows = this.terminal.rows;
-            let cols = this.terminal.cols;
+            const { rows, cols } = this.terminal;
+            if (rows === this.syncedRows && cols === this.syncedCols) {
+                return;
+            }
+            this.syncedRows = rows;
+            this.syncedCols = cols;
             this.$root.emitAgent(this.endpoint, "terminalResize", this.name, rows, cols);
         },
 

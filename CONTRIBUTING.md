@@ -1,21 +1,21 @@
 ## Can I create a pull request for Dockge?
 
-Yes or no, it depends on what you will try to do. Since I don't want to waste your time, be sure to **create open a discussion, so we can have a discussion first**. Especially for a large pull request or you don't know if it will be merged or not.
+Yes or no, it depends on what you will try to do. So that your time isn't wasted, please **[open an issue](https://github.com/Ext745/dockge/issues/new/choose) first so we can discuss it**. Especially for a large pull request or you don't know if it will be merged or not.
 
 Here are some references:
 
 ### ✅ Usually accepted:
 - Bug fix
 - Security fix
-- Adding new language files (see [these instructions](https://github.com/louislam/dockge/blob/master/frontend/src/lang/README.md))
+- Adding new language files (see [these instructions](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md))
 - Adding new language keys: `$t("...")`
 
-### ⚠️ Discussion required:
+### ⚠️ Issue discussion required:
 - Large pull requests
 - New features
 
 ### ❌ Won't be merged:
-- A dedicated PR for translating existing languages (see [these instructions](https://github.com/louislam/dockge/blob/master/frontend/src/lang/README.md))
+- A dedicated PR for translating existing languages (see [these instructions](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md))
 - Do not pass the auto-test
 - Any breaking changes
 - Duplicated pull requests
@@ -28,11 +28,9 @@ Here are some references:
 
 The above cases may not cover all possible situations.
 
-I (@louislam) have the final say. If your pull request does not meet my expectations, I will reject it, no matter how much time you spend on it. Therefore, it is essential to have a discussion beforehand.
+The maintainer of this fork (@Ext745) has the final say. A pull request that doesn't fit the project may be declined, no matter how much time went into it. Therefore, it is essential to discuss it in an issue beforehand.
 
-I will assign your pull request to a [milestone](https://github.com/louislam/dockge/milestones), if I plan to review and merge it.
-
-Also, please don't rush or ask for an ETA, because I have to understand the pull request, make sure it is no breaking changes and stick to my vision of this project, especially for large pull requests.
+Also, please don't rush or ask for an ETA: every pull request has to be understood, checked for breaking changes and kept in line with the project's direction, especially large ones.
 
 ## Project Styles
 
@@ -132,9 +130,8 @@ Please add **all** the strings which are translatable to `src/lang/en.json` (If 
 **Don't include any other languages in your initial Pull-Request** (even if this is your mother tongue), to avoid merge-conflicts between weblate and `master`.  
 The translations can then (after merging a PR into `master`) be translated by awesome people donating their language skills.
 
-If you want to help by translating Uptime Kuma into your language, please visit the [instructions on how to translate using weblate](https://github.com/louislam/uptime-kuma/blob/master/src/lang/README.md).
+If you want to help by translating Dockge into your language, please see the [translation guide](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md).
 
 ## Spelling & Grammar
 
 Feel free to correct the grammar in the documentation or code.
-My mother language is not English and my grammar is not that great.

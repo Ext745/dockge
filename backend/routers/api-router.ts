@@ -25,6 +25,27 @@ const STATUS_NAMES: Record<number, string> = {
 
 const VALID_STACK_NAME = /^[a-z0-9_-]+$/;
 
+type StackAction = {
+    path: string;
+    label: string;
+    pastTense: string;
+    agentEvent: string;
+    // Each entry is one `docker compose` invocation: [command, ...args], run in order
+    composeCommands: string[][];
+    // Refuse on the local host if Dockge itself runs in this stack (it would take itself down)
+    refuseSelfStack: boolean;
+};
+
+const STACK_ACTIONS: StackAction[] = [
+    { path: "start", label: "Start", pastTense: "started", agentEvent: "startStack", composeCommands: [[ "up", "-d", "--remove-orphans" ]], refuseSelfStack: false },
+    { path: "stop", label: "Stop", pastTense: "stopped", agentEvent: "stopStack", composeCommands: [[ "stop" ]], refuseSelfStack: true },
+    { path: "restart", label: "Restart", pastTense: "restarted", agentEvent: "restartStack", composeCommands: [[ "restart" ]], refuseSelfStack: false },
+    // Pull images and recreate
+    { path: "update", label: "Update", pastTense: "updated", agentEvent: "updateStack", composeCommands: [[ "pull" ], [ "up", "-d", "--remove-orphans" ]], refuseSelfStack: false },
+    // Stop and remove containers (inactive)
+    { path: "down", label: "Down", pastTense: "downed", agentEvent: "downStack", composeCommands: [[ "down" ]], refuseSelfStack: true },
+];
+
 async function apiKeyAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
     const settingsKey = await Settings.get("apiKey") as string | null;
     const apiKey = settingsKey || process.env.DOCKGE_API_KEY;
@@ -53,8 +74,7 @@ async function apiKeyAuth(req: Request, res: Response, next: NextFunction): Prom
 function validateStackName(req: Request, res: Response, next: NextFunction): void {
     const name = req.params.name;
     if (!name || !VALID_STACK_NAME.test(name)) {
-        res.status(400).json({ ok: false,
-            error: "Invalid stack name" });
+        res.status(400).json({ ok: false, error: "Invalid stack name" });
         return;
     }
     next();
@@ -83,6 +103,40 @@ async function resolveEndpoint(endpoint: string | undefined): Promise<string> {
         }
     }
     return endpoint;
+}
+
+/**
+ * Parse a query value as an integer and clamp it, so a bad or huge value can't reach the SQL LIMIT/OFFSET.
+ * @param value Raw query value
+ * @param min Lowest allowed value, also used when the value isn't a number
+ * @param max Highest allowed value
+ * @returns The bounded integer
+ */
+function parseBoundedInt(value: unknown, min: number, max: number): number {
+    const n = parseInt(String(value), 10);
+    if (Number.isNaN(n)) {
+        return min;
+    }
+    return Math.min(max, Math.max(min, n));
+}
+
+const STACK_STATUS_CONCURRENCY = 4;
+
+/**
+ * Run an async task over items with at most `limit` tasks in flight.
+ * @param items Items to process
+ * @param limit Maximum number of concurrent tasks
+ * @param task Async task for one item
+ * @returns Resolves once every task has settled; rejects with the first failure
+ */
+async function forEachWithConcurrency<T>(items: T[], limit: number, task: (item: T) => Promise<unknown>): Promise<void> {
+    let next = 0;
+    const worker = async () => {
+        while (next < items.length) {
+            await task(items[next++]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 function agentSupports(server: DockgeServer, endpoint: string): boolean {
@@ -118,8 +172,7 @@ export class ApiRouter extends Router {
         router.use(express.json());
 
         router.get("/api/health", (_req: Request, res: Response) => {
-            res.json({ status: "ok",
-                version: server.packageJSON.version });
+            res.json({ status: "ok", version: server.packageJSON.version });
         });
 
         router.use("/api", apiKeyAuth);
@@ -161,12 +214,10 @@ export class ApiRouter extends Router {
                     });
                 }
 
-                res.json({ ok: true,
-                    agents });
+                res.json({ ok: true, agents });
             } catch (e) {
                 log.error("api", "GET /api/agents error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to list agents" });
+                res.status(500).json({ ok: false, error: "Failed to list agents" });
             }
         });
 
@@ -175,8 +226,22 @@ export class ApiRouter extends Router {
             try {
                 const { url, username, password, name } = req.body;
                 if (!url || typeof url !== "string") {
-                    res.status(400).json({ ok: false,
-                        error: "url is required" });
+                    res.status(400).json({ ok: false, error: "url is required" });
+                    return;
+                }
+                let parsedUrl: URL;
+                try {
+                    parsedUrl = new URL(url);
+                } catch {
+                    res.status(400).json({ ok: false, error: "url must be a valid http(s) URL" });
+                    return;
+                }
+                if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+                    res.status(400).json({ ok: false, error: "url must be a valid http(s) URL" });
+                    return;
+                }
+                if ((username !== undefined && typeof username !== "string") || (password !== undefined && typeof password !== "string") || (name !== undefined && typeof name !== "string")) {
+                    res.status(400).json({ ok: false, error: "username, password and name must be strings" });
                     return;
                 }
 
@@ -190,13 +255,10 @@ export class ApiRouter extends Router {
                 bean.name = name || "";
                 await R.store(bean);
 
-                res.json({ ok: true,
-                    message: "Agent added successfully" });
+                res.json({ ok: true, message: "Agent added successfully" });
             } catch (e) {
                 log.error("api", "POST /api/agents error: " + e);
-                const msg = e instanceof Error ? e.message : "Failed to add agent";
-                res.status(500).json({ ok: false,
-                    error: msg });
+                res.status(500).json({ ok: false, error: "Failed to add agent" });
             }
         });
 
@@ -206,11 +268,7 @@ export class ApiRouter extends Router {
                 const agentList = await Agent.getAgentList();
                 const agents: { endpoint: string; name: string; url: string; connected: boolean; version: string | null }[] = [];
 
-                agents.push({ endpoint: "",
-                    name: "master",
-                    url: "",
-                    connected: true,
-                    version: server.packageJSON.version ?? null });
+                agents.push({ endpoint: "", name: "master", url: "", connected: true, version: server.packageJSON.version ?? null });
 
                 for (const url in agentList) {
                     const agent = agentList[url];
@@ -227,12 +285,10 @@ export class ApiRouter extends Router {
                     });
                 }
 
-                res.json({ ok: true,
-                    agents });
+                res.json({ ok: true, agents });
             } catch (e) {
                 log.error("api", "GET /api/agents/status error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to check agent status" });
+                res.status(500).json({ ok: false, error: "Failed to check agent status" });
             }
         });
 
@@ -244,8 +300,9 @@ export class ApiRouter extends Router {
                 const stacks: StackInfo[] = [];
 
                 const stackList = await Stack.getStackList(server, true);
-                for (const [ name, stack ] of stackList) {
-                    await stack.updateData();
+                // Each updateData() spawns `docker compose ps`; run a few at a time rather than one by one
+                await forEachWithConcurrency([ ...stackList.values() ], STACK_STATUS_CONCURRENCY, (stack) => stack.updateData());
+                for (const [name, stack] of stackList) {
                     stacks.push({
                         name,
                         status: STATUS_NAMES[stack.status] || "unknown",
@@ -288,8 +345,7 @@ export class ApiRouter extends Router {
                     }
                 }
 
-                const response: Record<string, unknown> = { ok: true,
-                    stacks };
+                const response: Record<string, unknown> = { ok: true, stacks };
                 if (unsupportedAgents.length > 0) {
                     response.unsupportedAgents = unsupportedAgents;
                     response.notice = "Some agents are running a version older than 1.6.0 and do not support API stack listing. Upgrade them to include their stacks.";
@@ -297,8 +353,7 @@ export class ApiRouter extends Router {
                 res.json(response);
             } catch (e) {
                 log.error("api", "GET /api/stacks error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to list stacks" });
+                res.status(500).json({ ok: false, error: "Failed to list stacks" });
             }
         });
 
@@ -308,8 +363,7 @@ export class ApiRouter extends Router {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
                 if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
+                    res.status(400).json({ ok: false, error: "Invalid endpoint format" });
                     return;
                 }
 
@@ -331,8 +385,7 @@ export class ApiRouter extends Router {
                             },
                         });
                     } else {
-                        res.status(404).json({ ok: false,
-                            error: result.msg || "Stack not found on agent" });
+                        res.status(404).json({ ok: false, error: result.msg || "Stack not found on agent" });
                     }
                     return;
                 }
@@ -354,168 +407,64 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false,
-                        error: "Stack not found" });
+                    res.status(404).json({ ok: false, error: "Stack not found" });
                 } else {
                     log.error("api", `GET /api/stacks/${req.params.name}/status error: ${e}`);
-                    res.status(500).json({ ok: false,
-                        error: "Failed to get stack status" });
+                    res.status(500).json({ ok: false, error: "Failed to get stack status" });
                 }
             }
         });
 
-        // POST /api/stacks/:name/start
-        router.post("/api/stacks/:name/start", validateStackName, async (req: Request, res: Response) => {
-            try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
+        // POST /api/stacks/:name/{start,stop,restart,update,down}
+        for (const action of STACK_ACTIONS) {
+            router.post(`/api/stacks/:name/${action.path}`, validateStackName, async (req: Request, res: Response) => {
+                const name = req.params.name;
+                try {
+                    const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
-                if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
-                    return;
-                }
-
-                if (endpoint && endpoint !== "") {
-                    const result = await emitToAgent(server, endpoint, "startStack", req.params.name);
-                    if (result.ok) {
-                        res.json({ ok: true,
-                            message: `Stack '${req.params.name}' started on ${endpoint}`,
-                            endpoint });
-                    } else {
-                        res.status(500).json({ ok: false,
-                            error: result.msg || "Start failed on agent" });
+                    if (!validateEndpoint(endpoint)) {
+                        res.status(400).json({ ok: false, error: "Invalid endpoint format" });
+                        return;
                     }
-                    return;
-                }
 
-                const stack = await Stack.getStack(server, req.params.name, false);
-
-                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "up", "-d", "--remove-orphans" ], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                res.json({
-                    ok: true,
-                    message: `Stack '${req.params.name}' started`,
-                    endpoint: "",
-                });
-            } catch (e) {
-                if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false,
-                        error: "Stack not found" });
-                } else {
-                    log.error("api", `POST /api/stacks/${req.params.name}/start error: ${e}`);
-                    res.status(500).json({ ok: false,
-                        error: "Failed to start stack" });
-                }
-            }
-        });
-
-        // POST /api/stacks/:name/stop
-        router.post("/api/stacks/:name/stop", validateStackName, async (req: Request, res: Response) => {
-            try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
-
-                if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
-                    return;
-                }
-
-                if (endpoint && endpoint !== "") {
-                    const result = await emitToAgent(server, endpoint, "stopStack", req.params.name);
-                    if (result.ok) {
-                        res.json({ ok: true,
-                            message: `Stack '${req.params.name}' stopped on ${endpoint}`,
-                            endpoint });
-                    } else {
-                        res.status(500).json({ ok: false,
-                            error: result.msg || "Stop failed on agent" });
+                    if (endpoint && endpoint !== "") {
+                        const result = await emitToAgent(server, endpoint, action.agentEvent, name);
+                        if (result.ok) {
+                            res.json({ ok: true, message: `Stack '${name}' ${action.pastTense} on ${endpoint}`, endpoint });
+                        } else {
+                            res.status(500).json({ ok: false, error: result.msg || `${action.label} failed on agent` });
+                        }
+                        return;
                     }
-                    return;
-                }
 
-                const stack = await Stack.getStack(server, req.params.name, false);
+                    const stack = await Stack.getStack(server, name, false);
 
-                if (await stack.isSelfStack()) {
-                    res.status(400).json({ ok: false,
-                        error: "Cannot stop the stack that contains Dockge itself" });
-                    return;
-                }
-
-                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "stop" ], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                res.json({
-                    ok: true,
-                    message: `Stack '${req.params.name}' stopped`,
-                    endpoint: "",
-                });
-            } catch (e) {
-                if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false,
-                        error: "Stack not found" });
-                } else {
-                    log.error("api", `POST /api/stacks/${req.params.name}/stop error: ${e}`);
-                    res.status(500).json({ ok: false,
-                        error: "Failed to stop stack" });
-                }
-            }
-        });
-
-        // POST /api/stacks/:name/restart
-        router.post("/api/stacks/:name/restart", validateStackName, async (req: Request, res: Response) => {
-            try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
-
-                if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
-                    return;
-                }
-
-                if (endpoint && endpoint !== "") {
-                    const result = await emitToAgent(server, endpoint, "restartStack", req.params.name);
-                    if (result.ok) {
-                        res.json({ ok: true,
-                            message: `Stack '${req.params.name}' restarted on ${endpoint}`,
-                            endpoint });
-                    } else {
-                        res.status(500).json({ ok: false,
-                            error: result.msg || "Restart failed on agent" });
+                    if (action.refuseSelfStack && await stack.isSelfStack()) {
+                        res.status(400).json({ ok: false, error: `Cannot ${action.path} the stack that contains Dockge itself` });
+                        return;
                     }
-                    return;
+
+                    for (const args of action.composeCommands) {
+                        await childProcessAsync.spawn("docker", stack.getComposeOptions(args[0], ...args.slice(1)), {
+                            cwd: stack.path,
+                            encoding: "utf-8",
+                        });
+                    }
+
+                    res.json({ ok: true, message: `Stack '${name}' ${action.pastTense}`, endpoint: "" });
+                } catch (e) {
+                    if (e instanceof ValidationError) {
+                        res.status(404).json({ ok: false, error: "Stack not found" });
+                    } else {
+                        log.error("api", `POST /api/stacks/${name}/${action.path} error: ${e}`);
+                        res.status(500).json({ ok: false, error: `Failed to ${action.path} stack` });
+                    }
                 }
+            });
+        }
 
-                const stack = await Stack.getStack(server, req.params.name, false);
-
-                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "restart" ], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                res.json({
-                    ok: true,
-                    message: `Stack '${req.params.name}' restarted`,
-                    endpoint: "",
-                });
-            } catch (e) {
-                if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false,
-                        error: "Stack not found" });
-                } else {
-                    log.error("api", `POST /api/stacks/${req.params.name}/restart error: ${e}`);
-                    res.status(500).json({ ok: false,
-                        error: "Failed to restart stack" });
-                }
-            }
-        });
-
-        // POST /api/stacks/:name/update — pull images and restart
-        router.post("/api/stacks/:name/update", validateStackName, async (req: Request, res: Response) => {
+        // POST /api/system/prune
+        router.post("/api/system/prune", async (req: Request, res: Response) => {
             try {
                 const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
 
@@ -525,121 +474,16 @@ export class ApiRouter extends Router {
                 }
 
                 if (endpoint && endpoint !== "") {
-                    const result = await emitToAgent(server, endpoint, "updateStack", req.params.name);
-                    if (result.ok) {
-                        res.json({ ok: true, message: `Stack '${req.params.name}' updated on ${endpoint}`, endpoint });
-                    } else {
-                        res.status(500).json({ ok: false, error: result.msg || "Update failed on agent" });
-                    }
-                    return;
-                }
-
-                const stack = await Stack.getStack(server, req.params.name, false);
-
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "pull"], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                await childProcessAsync.spawn("docker", [...stack.composeArgs, "up", "-d", "--remove-orphans"], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                res.json({
-                    ok: true,
-                    message: `Stack '${req.params.name}' updated`,
-                    endpoint: "",
-                });
-            } catch (e) {
-                if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false, error: "Stack not found" });
-                } else {
-                    log.error("api", `POST /api/stacks/${req.params.name}/update error: ${e}`);
-                    res.status(500).json({ ok: false, error: "Failed to update stack" });
-                }
-            }
-        });
-
-        // POST /api/stacks/:name/down — stop and remove containers (inactive)
-        router.post("/api/stacks/:name/down", validateStackName, async (req: Request, res: Response) => {
-            try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
-
-                if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
-                    return;
-                }
-
-                if (endpoint && endpoint !== "") {
-                    const result = await emitToAgent(server, endpoint, "downStack", req.params.name);
-                    if (result.ok) {
-                        res.json({ ok: true,
-                            message: `Stack '${req.params.name}' downed on ${endpoint}`,
-                            endpoint });
-                    } else {
-                        res.status(500).json({ ok: false,
-                            error: result.msg || "Down failed on agent" });
-                    }
-                    return;
-                }
-
-                const stack = await Stack.getStack(server, req.params.name, false);
-
-                if (await stack.isSelfStack()) {
-                    res.status(400).json({ ok: false,
-                        error: "Cannot down the stack that contains Dockge itself" });
-                    return;
-                }
-
-                await childProcessAsync.spawn("docker", [ ...stack.composeArgs, "down" ], {
-                    cwd: stack.path,
-                    encoding: "utf-8",
-                });
-
-                res.json({
-                    ok: true,
-                    message: `Stack '${req.params.name}' downed`,
-                    endpoint: "",
-                });
-            } catch (e) {
-                if (e instanceof ValidationError) {
-                    res.status(404).json({ ok: false,
-                        error: "Stack not found" });
-                } else {
-                    log.error("api", `POST /api/stacks/${req.params.name}/down error: ${e}`);
-                    res.status(500).json({ ok: false,
-                        error: "Failed to down stack" });
-                }
-            }
-        });
-
-        // POST /api/system/prune
-        router.post("/api/system/prune", async (req: Request, res: Response) => {
-            try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
-
-                if (!validateEndpoint(endpoint)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid endpoint format" });
-                    return;
-                }
-
-                if (endpoint && endpoint !== "") {
                     const result = await emitToAgent(server, endpoint, "dockerSystemPrune", true, false);
                     if (result.ok) {
-                        res.json({ ok: true,
-                            output: result.msg || "",
-                            endpoint });
+                        res.json({ ok: true, output: result.msg || "", endpoint });
                     } else {
-                        res.status(500).json({ ok: false,
-                            error: result.msg || "Prune failed on agent" });
+                        res.status(500).json({ ok: false, error: result.msg || "Prune failed on agent" });
                     }
                     return;
                 }
 
-                const result = await childProcessAsync.spawn("docker", [ "system", "prune", "-a", "-f" ], {
+                const result = await childProcessAsync.spawn("docker", ["system", "prune", "-a", "-f"], {
                     encoding: "utf-8",
                 });
 
@@ -650,8 +494,7 @@ export class ApiRouter extends Router {
                 });
             } catch (e) {
                 log.error("api", "POST /api/system/prune error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to prune system" });
+                res.status(500).json({ ok: false, error: "Failed to prune system" });
             }
         });
 
@@ -665,12 +508,10 @@ export class ApiRouter extends Router {
                 } else {
                     result = await scanAllStacks(server.stacksDir);
                 }
-                res.json({ ok: true,
-                    ...result });
+                res.json({ ok: true, ...result });
             } catch (e) {
                 log.error("api", "GET /api/version-sync/scan error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to scan for version mismatches" });
+                res.status(500).json({ ok: false, error: "Failed to scan for version mismatches" });
             }
         });
 
@@ -679,36 +520,28 @@ export class ApiRouter extends Router {
             try {
                 const { stackName, service, newImage } = req.body;
                 if (typeof stackName !== "string" || typeof service !== "string" || typeof newImage !== "string") {
-                    res.status(400).json({ ok: false,
-                        error: "stackName, service, and newImage are required strings" });
+                    res.status(400).json({ ok: false, error: "stackName, service, and newImage are required strings" });
                     return;
                 }
                 if (!VALID_STACK_NAME.test(stackName)) {
-                    res.status(400).json({ ok: false,
-                        error: "Invalid stack name" });
+                    res.status(400).json({ ok: false, error: "Invalid stack name" });
                     return;
                 }
 
                 const scanResult = await scanStack(server.stacksDir, stackName);
                 const mismatch = scanResult.mismatches.find(m => m.service === service);
                 if (!mismatch) {
-                    res.status(404).json({ ok: false,
-                        error: "No mismatch found for this service" });
+                    res.status(404).json({ ok: false, error: "No mismatch found for this service" });
                     return;
                 }
 
                 const { oldImage } = syncComposeFile(mismatch.composePath, service, newImage, server.stacksDir);
                 await VersionSyncHistoryService.recordSync(stackName, "", service, oldImage, newImage, mismatch.composePath, false);
 
-                res.json({ ok: true,
-                    stackName,
-                    service,
-                    oldImage,
-                    newImage });
+                res.json({ ok: true, stackName, service, oldImage, newImage });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/sync error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to sync version" });
+                res.status(500).json({ ok: false, error: "Failed to sync version" });
             }
         });
 
@@ -727,19 +560,13 @@ export class ApiRouter extends Router {
                 for (const mismatch of scanResult.mismatches) {
                     const { oldImage } = syncComposeFile(mismatch.composePath, mismatch.service, mismatch.runningImage, server.stacksDir);
                     await VersionSyncHistoryService.recordSync(mismatch.stackName, "", mismatch.service, oldImage, mismatch.runningImage, mismatch.composePath, false);
-                    synced.push({ stackName: mismatch.stackName,
-                        service: mismatch.service,
-                        oldImage,
-                        newImage: mismatch.runningImage });
+                    synced.push({ stackName: mismatch.stackName, service: mismatch.service, oldImage, newImage: mismatch.runningImage });
                 }
 
-                res.json({ ok: true,
-                    synced,
-                    count: synced.length });
+                res.json({ ok: true, synced, count: synced.length });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/sync-all error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to sync all versions" });
+                res.status(500).json({ ok: false, error: "Failed to sync all versions" });
             }
         });
 
@@ -748,10 +575,10 @@ export class ApiRouter extends Router {
             try {
                 const options: Record<string, unknown> = {};
                 if (req.query.limit) {
-                    options.limit = parseInt(req.query.limit as string, 10);
+                    options.limit = parseBoundedInt(req.query.limit, 1, 500);
                 }
                 if (req.query.offset) {
-                    options.offset = parseInt(req.query.offset as string, 10);
+                    options.offset = parseBoundedInt(req.query.offset, 0, Number.MAX_SAFE_INTEGER);
                 }
                 if (req.query.stack) {
                     options.stackName = req.query.stack as string;
@@ -761,12 +588,10 @@ export class ApiRouter extends Router {
                 }
 
                 const result = await VersionSyncHistoryService.getHistory(options);
-                res.json({ ok: true,
-                    ...result });
+                res.json({ ok: true, ...result });
             } catch (e) {
                 log.error("api", "GET /api/version-sync/history error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to get version sync history" });
+                res.status(500).json({ ok: false, error: "Failed to get version sync history" });
             }
         });
 
@@ -775,15 +600,13 @@ export class ApiRouter extends Router {
             try {
                 const { stackName, service } = req.body;
                 if (typeof stackName !== "string" || typeof service !== "string") {
-                    res.status(400).json({ ok: false,
-                        error: "stackName and service are required strings" });
+                    res.status(400).json({ ok: false, error: "stackName and service are required strings" });
                     return;
                 }
 
                 const revertable = await VersionSyncHistoryService.getRevertableEntries(stackName, service);
                 if (revertable.length === 0) {
-                    res.status(404).json({ ok: false,
-                        error: "No revertable sync found" });
+                    res.status(404).json({ ok: false, error: "No revertable sync found" });
                     return;
                 }
 
@@ -791,14 +614,10 @@ export class ApiRouter extends Router {
                 syncComposeFile(entry.composePath, entry.service, entry.oldImage, server.stacksDir);
                 await VersionSyncHistoryService.recordSync(entry.stackName, "", entry.service, entry.newImage, entry.oldImage, entry.composePath, true);
 
-                res.json({ ok: true,
-                    stackName,
-                    service,
-                    revertedTo: entry.oldImage });
+                res.json({ ok: true, stackName, service, revertedTo: entry.oldImage });
             } catch (e) {
                 log.error("api", "POST /api/version-sync/revert error: " + e);
-                res.status(500).json({ ok: false,
-                    error: "Failed to revert version sync" });
+                res.status(500).json({ ok: false, error: "Failed to revert version sync" });
             }
         });
 
