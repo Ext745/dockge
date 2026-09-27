@@ -23,9 +23,13 @@ Standing rules:
   the host's own daemon - it may be running real, unrelated
   infrastructure that shouldn't be disturbed.
 - Before tagging a release, grep for the outgoing version string across
-  the repo - `About.vue`'s "check update" URL plus the pinned image tag
-  in `compose.yaml` and README's quickstart/one-line updater all carry
-  it (`Layout.vue` now links `/releases/latest`, so it no longer does).
+  the repo - the pinned image tag in `compose.yaml` and README's
+  quickstart/one-line updater carry it (`Layout.vue` and `About.vue`
+  now link `/releases/latest` / `/releases`, so they no longer do).
+- Every release needs a GitHub Release (`gh release create vX.Y.Z`),
+  not just a tag: `docker-release.yml` only publishes the image, and
+  the in-app update check (`backend/check-version.ts`) reads this
+  fork's GitHub Releases - a tag alone is invisible to it.
 - Tag namespace: darthrater78 and this fork both tag `vX.Y.Z`, and their
   v2.2.0/v2.3.0 are different commits from ours. `git fetch origin`
   keeps our local tags; always pick a release version above both.

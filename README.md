@@ -115,6 +115,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Interactive progress terminal** | The Compose/Agent Maintenance progress terminal now forwards keystrokes, so `docker compose` `[y/N]` prompts and Ctrl+C work instead of hanging forever. Also from NekoSuneProjectsForks/dockge |
 | **Auto-prune dangling images** | `Stack.update()` now prunes dangling images after a successful pull+up, so old layers don't pile up on every update |
 | **Raw-keystroke host console** | The Console page now sends every keystroke straight to the shell instead of editing a line locally and sending it on Enter, so bash's own tab completion, Up/Down history, cursor editing, Ctrl+C and full-screen programs work. Same shell and same access as before (the console is still off unless `DOCKGE_ENABLE_CONSOLE=true`). Adapted from [Lorwell/dockge](https://github.com/Lorwell/dockge) commit `7a36b47` |
+| **Update check that sees this fork** | "Show update if available" used to ask louislam's `dockge.kuma.pet/version` (which reports the 1.x line), so a 2.x install never saw an update. It now reads this fork's GitHub Releases (stable, plus pre-releases when "Also check beta release" is on), and Settings → About's "Check Update On GitHub" opens the releases page instead of a link pinned to the running version |
 
 <table>
   <tr>
