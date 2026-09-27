@@ -477,7 +477,7 @@
             <BModal v-model="showTransferDialog" :cancelTitle="$t('cancel')" :okTitle="$t('transferStack')" okVariant="primary" :okDisabled="!transferTarget || transferring || (namedVolumesInUse.length > 0 && !transferAckDataLoss)" @ok.prevent="confirmTransfer">
                 <p>{{ $t("transferStackMsg") }}</p>
 
-                <div v-if="namedVolumesInUse.length > 0" class="alert alert-warning">
+                <div v-if="namedVolumesInUse.length > 0" class="alert alert-warning shadow-box">
                     <p class="mb-2">
                         <font-awesome-icon icon="exclamation-circle" class="me-1" />
                         {{ $t("transferVolumeWarning", [ namedVolumesInUse.join(", ") ]) }}

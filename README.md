@@ -26,9 +26,9 @@ On a phone, Dockge is built around one job: **find a stack → open it → edit 
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/images/mobile-stack-list.png" width="240" alt="Mobile stack list with search, filters and port conflict banner" /><br /><b>Find</b></td>
+    <td align="center" width="33%"><img src="docs/images/mobile-stack-list.png" width="240" alt="Mobile stack list with search, status filters and a per-agent section" /><br /><b>Find</b></td>
     <td align="center" width="33%"><img src="docs/images/mobile-stack-overview.png" width="240" alt="Stack overview tab with containers and bottom action bar" /><br /><b>Open</b></td>
-    <td align="center" width="33%"><img src="docs/images/mobile-stack-logs.png" width="240" alt="Logs tab filling the screen" /><br /><b>Watch</b></td>
+    <td align="center" width="33%"><img src="docs/images/mobile-stack-logs.png" width="240" alt="Logs tab: the action's progress terminal above the stack's log stream, with Download Log" /><br /><b>Watch</b></td>
   </tr>
   <tr>
     <td align="center"><img src="docs/images/mobile-stack-edit.png" width="240" alt="Editing compose.yaml with Deploy, Save and Discard" /><br /><b>Edit</b></td>
@@ -89,9 +89,9 @@ Compose Drift Check (added in this fork in 1.7.0) finds services whose `compose.
 
 ---
 
-<img src="https://github.com/louislam/dockge/assets/1336778/26a583e1-ecb1-4a8d-aedf-76157d714ad7" width="900" alt="" />
+<img src="docs/images/desktop-hero.png" width="900" alt="Stack page on desktop: stack list grouped by agent with port badges, container card, compose.yaml, and the terminal with Download Log" />
 
-View Video: https://youtu.be/AWAlOQeNpgU?t=48
+Original Dockge intro video (Louis Lam, shows the 2023 UI): https://youtu.be/AWAlOQeNpgU?t=48
 
 ---
 
@@ -114,6 +114,14 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Node-to-node stack transfer** | Zip a stack, send it to another connected agent, deploy it there, then remove it from the source — moves a stack between hosts from the kebab menu. Ported from [NekoSuneProjectsForks/dockge](https://github.com/NekoSuneProjectsForks/dockge), with its RBAC-dependent access checks (a role system this fork doesn't have) dropped down to this fork's actual `checkLogin`-only auth model. Hardened after live-testing against real multi-agent setups: rolls back cleanly on a failed deploy (no orphaned containers or folders left behind), warns before moving a stack that uses named Docker volumes (their data isn't part of the transfer), handles larger stacks (raised the socket message-size limit), and the export → import → delete sequence now runs entirely server-side so it finishes even if the browser tab that started it closes |
 | **Interactive progress terminal** | The Compose/Agent Maintenance progress terminal now forwards keystrokes, so `docker compose` `[y/N]` prompts and Ctrl+C work instead of hanging forever. Also from NekoSuneProjectsForks/dockge |
 | **Auto-prune dangling images** | `Stack.update()` now prunes dangling images after a successful pull+up, so old layers don't pile up on every update |
+
+<table>
+  <tr>
+    <td align="center" width="40%"><img src="docs/images/desktop-transfer.png" alt="Transfer to Node dialog warning that named volume data is not copied" /><br /><b>Node-to-node transfer</b>, with the named-volume warning</td>
+    <td align="center" width="40%"><img src="docs/images/desktop-agent-maintenance.png" alt="Agent Maintenance: containers, images, networks and volumes of an agent" /><br /><b>Agent Maintenance</b></td>
+    <td align="center" width="20%"><img src="docs/images/desktop-filter.png" alt="Stack list filter dropdown by agent and status" /><br /><b>Category filter</b></td>
+  </tr>
+</table>
 
 Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). See `PORTING.md` and `dockge-port-tracking.md` in this repo for the full write-up, live-test methodology, and the bugs found.
 
@@ -154,7 +162,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🚄 Reactive - Everything is just responsive. Progress (Pull/Up/Down) and terminal output are in real-time
 - 🐣 Easy-to-use & fancy UI - If you love Uptime Kuma's UI/UX, you will love this one too
 
-![](https://github.com/louislam/dockge/assets/1336778/89fc1023-b069-42c0-a01c-918c495f1a6a)
+<img src="docs/images/desktop-deploy-progress.png" width="900" alt="Deploying a new stack: the progress terminal streams the image pull live" />
 
 ## 🔧 How to Install
 
@@ -427,15 +435,16 @@ This fork's own changes are listed in the "This fork — Ext745/dockge" section 
 
 ## Screenshots
 
-![](https://github.com/louislam/dockge/assets/1336778/e7ff0222-af2e-405c-b533-4eab04791b40)
-
-
-![](https://github.com/louislam/dockge/assets/1336778/7139e88c-77ed-4d45-96e3-00b66d36d871)
-
-![](https://github.com/louislam/dockge/assets/1336778/f019944c-0e87-405b-a1b8-625b35de1eeb)
-
-![](https://github.com/louislam/dockge/assets/1336778/a4478d23-b1c4-4991-8768-1a7cad3472e3)
-
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/images/desktop-home.png" alt="Home: stack counts, Docker Run converter, Compose Drift Check and connected agents" /><br /><b>Home</b> — status counts, agents, Compose Drift Check</td>
+    <td align="center" width="50%"><img src="docs/images/desktop-edit.png" alt="Editing a stack: compose.yaml, .env, containers and networks" /><br /><b>Edit</b> — compose.yaml, .env, containers, networks</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/desktop-container-shell.png" alt="Shell inside a running container" /><br /><b>Container shell</b></td>
+    <td align="center"><img src="docs/images/desktop-console.png" alt="Host console running docker ps" /><br /><b>Console</b> (with <code>DOCKGE_ENABLE_CONSOLE=true</code>)</td>
+  </tr>
+</table>
 
 ## Motivations
 
