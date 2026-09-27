@@ -30,6 +30,10 @@ Standing rules:
   not just a tag: `docker-release.yml` only publishes the image, and
   the in-app update check (`backend/check-version.ts`) reads this
   fork's GitHub Releases - a tag alone is invisible to it.
+- Every release also gets a row in README's "Version History" table
+  (version, date, one-line summary, link to its GitHub Release), in
+  the same commit as the version bump. Fixes go in the bug-fix
+  paragraph under the fork table too, not only as a table row.
 - Tag namespace: darthrater78 and this fork both tag `vX.Y.Z`, and their
   v2.2.0/v2.3.0 are different commits from ours. `git fetch origin`
   keeps our local tags; always pick a release version above both.

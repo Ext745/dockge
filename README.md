@@ -126,7 +126,9 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
   </tr>
 </table>
 
-Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). See `PORTING.md` in this repo for the full write-up, live-test methodology, and the bugs found.
+Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). Two more turned up after v2.5.0: a stack whose `compose.yaml` was invalid could never be deleted, because Delete's `docker compose down` refuses to read a broken file (fixed in **v2.5.2**; the same bug is in darthrater78 and louislam), and the "Show update if available" check polled louislam's 1.x version endpoint, so it could never report a 2.x update (fixed in **v2.5.1**). See `PORTING.md` in this repo for the full write-up of the porting work, live-test methodology, and the bugs found.
+
+What changed in each release of this fork: [Version History](#version-history).
 
 **Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
@@ -435,7 +437,18 @@ The API communicates with remote agents via Socket.IO. Agents running pre-1.6.0 
 
 ## Version History
 
-This fork's own changes are listed in the "This fork — Ext745/dockge" section near the top of this README. For the full darthrater78 version history (v1.5.1 through v2.3.1), see [their README](https://github.com/darthrater78/dockge/blob/master/README.md#version-history).
+This fork's releases (full notes on each [GitHub Release](https://github.com/Ext745/dockge/releases)):
+
+| Version | Date | What changed |
+|---|---|---|
+| [**v2.5.2**](https://github.com/Ext745/dockge/releases/tag/v2.5.2) | 2026-09-27 | **Fix:** a stack with an invalid `compose.yaml` (a typo, or a failed Deploy of a bad file) can now be deleted; a running stack later saved with a broken file also has its containers removed |
+| [**v2.5.1**](https://github.com/Ext745/dockge/releases/tag/v2.5.1) | 2026-09-27 | **Fix:** "Show update if available" now checks this fork's GitHub Releases (it polled louislam's 1.x endpoint and never fired); About's "Check Update On GitHub" opens the releases page |
+| [**v2.5.0**](https://github.com/Ext745/dockge/releases/tag/v2.5.0) | 2026-09-27 | Synced with darthrater78 v2.3.1 (mobile redesign, expandable terminals, port-conflict checks, security audit fixes); raw-keystroke host Console; transfer dialog's volume warning no longer renders as an ellipse |
+| [**v2.4.0**](https://github.com/Ext745/dockge/releases/tag/v2.4.0) | 2026-09-19 | Download Log and Copy-all on terminals; stack transfer runs server-side and rolls back cleanly on failure; named-volume warning before a transfer; clipboard copy over plain HTTP |
+| [**v2.3.0**](https://github.com/Ext745/dockge/releases/tag/v2.3.0) | 2026-09-19 | Node-to-node stack transfer; interactive progress terminal (`[y/N]` prompts, Ctrl+C); auto-prune dangling images on Update; login double-callback fix |
+| [**v2.2.0**](https://github.com/Ext745/dockge/releases/tag/v2.2.0) | 2026-09-19 | First release: darthrater78 v2.1.0 plus the hamphh/dockge 1.2 port (Agent Maintenance, ignore-status label, fullscreen editor, stack-list filter) |
+
+For the full darthrater78 version history (v1.5.1 through v2.3.1), see [their README](https://github.com/darthrater78/dockge#release-notes).
 
 ## Screenshots
 
