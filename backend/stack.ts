@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { stackComposePorts } from "../common/compose-ports";
 import { DockgeSocket, fileExists, ValidationError } from "./util-server";
 import path from "path";
+import os from "os";
 import {
     acceptedComposeFileNames,
     acceptedComposeOverrideFileNames,
@@ -441,7 +442,14 @@ export class Stack {
         const terminalName = getComposeTerminalName(socket.endpoint, this.name);
         let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("down", "--remove-orphans"), this.path);
         if (exitCode !== 0) {
-            throw new Error("Failed to delete, please check the terminal output for more information.");
+            // "compose down" parses the compose file first, so an invalid file (e.g. a typo saved from
+            // the editor) made the stack impossible to delete. Fall back to removing the project's
+            // containers and networks by project name, from an empty folder so the broken file is
+            // never read.
+            exitCode = await this.downByProjectName(socket, terminalName);
+            if (exitCode !== 0) {
+                throw new Error("Failed to delete, please check the terminal output for more information.");
+            }
         }
 
         // Remove the stack folder
@@ -451,6 +459,36 @@ export class Stack {
         });
 
         return exitCode;
+    }
+
+    /**
+     * "docker compose -p <project> down --remove-orphans" without reading the stack's compose file.
+     * The project is the file's top-level `name:` when it can still be parsed, else the folder name
+     * (compose's default).
+     * @param socket Socket that receives the terminal output
+     * @param terminalName Terminal to stream the output to
+     * @returns Exit code of the command
+     */
+    async downByProjectName(socket : DockgeSocket, terminalName : string) : Promise<number> {
+        let projectName = this.name;
+        try {
+            const name = yaml.parse(this.composeYAML)?.name;
+            if (typeof name === "string" && name.trim() !== "") {
+                projectName = name.trim();
+            }
+        } catch (e) {
+            // Unparseable file: keep the folder name
+        }
+
+        const emptyDir = await fsAsync.mkdtemp(path.join(os.tmpdir(), "dockge-down-"));
+        try {
+            return await Terminal.exec(this.server, socket, terminalName, "docker", [ "compose", "-p", projectName, "down", "--remove-orphans" ], emptyDir);
+        } finally {
+            await fsAsync.rm(emptyDir, {
+                recursive: true,
+                force: true,
+            });
+        }
     }
 
     async updateStatus() {
