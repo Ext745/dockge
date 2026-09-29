@@ -5,7 +5,7 @@ import { DockgeSocket } from "./util-server";
 import { Terminal } from "./terminal";
 import { log } from "./log";
 import childProcessAsync from "promisify-child-process";
-import { describeCleanup, pruneAllBuildCache, removeUnusedImages } from "./image-protection";
+import { describeCleanup, pruneAllBuildCache, removeUnusedImages, removeUnusedVolumes } from "./image-protection";
 
 export class AgentMaintenance {
 
@@ -252,9 +252,10 @@ export class AgentMaintenance {
     async prune(socket: DockgeSocket, artefact: string, all: boolean) {
         const terminalName = getAgentMaintenanceTerminalName(socket.endpoint);
 
-        // "All images" is done by Dockge (see removeUnusedImages) so images a stack uses are kept
+        // "All" for images and volumes is done by Dockge (removeUnusedImages / removeUnusedVolumes) so
+        // what a stack uses - including a downed stack's data volumes - is kept
         const dockerParams = [ artefact, "prune", "-f" ];
-        if (all && artefact !== "image") {
+        if (all && artefact !== "image" && artefact !== "volume") {
             dockerParams.push("-a");
         }
 
@@ -266,6 +267,9 @@ export class AgentMaintenance {
 
         if (all && artefact === "image") {
             await this.removeUnusedImagesWithOutput(socket, terminalName);
+        }
+        if (all && artefact === "volume") {
+            await Terminal.exec(this.server, socket, terminalName, "echo", [ await removeUnusedVolumes(this.server) ], "");
         }
 
         return exitCode;

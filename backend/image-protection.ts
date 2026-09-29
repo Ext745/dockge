@@ -128,6 +128,88 @@ export async function removeUnusedImages(server : DockgeServer) : Promise<Unused
 }
 
 /**
+ * Names of the volumes Dockge stacks declare, as Docker knows them: "<project>_<key>" for a stack's
+ * own volumes (the project is the file's top-level name:, else the folder name), a custom name:, or
+ * an external volume's name. A stack that is "down" has no containers, so Docker counts these as
+ * unused - "volume prune -a" would delete a downed stack's data (e.g. its database).
+ * @param server Server
+ * @returns Protected volume names
+ */
+export async function protectedVolumes(server : DockgeServer) : Promise<Set<string>> {
+    const names = new Set<string>();
+    for (const stack of (await Stack.getStackList(server)).values()) {
+        if (!stack.isManagedByDockge) {
+            continue;
+        }
+        const env = stack.composeVariables();
+        for (const text of [ stack.composeYAML, stack.composeOverrideYAML ]) {
+            if (!text) {
+                continue;
+            }
+            let doc : { name? : unknown, volumes? : unknown } | undefined;
+            try {
+                doc = parseDocument(text).toJS();
+            } catch {
+                continue;
+            }
+            if (!doc?.volumes || typeof doc.volumes !== "object") {
+                continue;
+            }
+            const project = typeof doc.name === "string" && doc.name.trim()
+                ? interpolate(doc.name, env).trim().toLowerCase()
+                : stack.name;
+            for (const [ key, value ] of Object.entries(doc.volumes as Record<string, { name? : unknown, external? : unknown } | null>)) {
+                const custom = typeof value?.name === "string" ? interpolate(value.name, env) : "";
+                const external = value?.external;
+                if (custom) {
+                    names.add(custom);
+                } else if (external) {
+                    names.add(typeof external === "object" && typeof (external as { name? : unknown }).name === "string" ? (external as { name : string }).name : key);
+                } else {
+                    names.add(`${project}_${key}`);
+                }
+            }
+        }
+    }
+    return names;
+}
+
+/**
+ * What "docker volume prune -a" does, except volumes a Dockge stack declares are kept.
+ * Volumes used by any container are never touched ("dangling" means unused).
+ * @param server Server
+ * @returns One-paragraph summary
+ */
+export async function removeUnusedVolumes(server : DockgeServer) : Promise<string> {
+    const keep = await protectedVolumes(server);
+    const removed : string[] = [];
+    const kept : string[] = [];
+    const failed : string[] = [];
+    for (const name of (await docker([ "volume", "ls", "-q", "-f", "dangling=true" ])).split("\n").map((l) => l.trim()).filter(Boolean)) {
+        const label = /^[0-9a-f]{64}$/.test(name) ? `${name.slice(0, 12)} (anonymous)` : name;
+        if (keep.has(name)) {
+            kept.push(name);
+            continue;
+        }
+        try {
+            await docker([ "volume", "rm", name ]);
+            removed.push(label);
+        } catch (e) {
+            log.debug("image-protection", `Couldn't remove volume ${name}: ${e}`);
+            failed.push(label);
+        }
+    }
+    const lines = [ `Removed ${removed.length} unused volume(s)${removed.length ? ": " + removed.join(", ") : "."}` ];
+    if (kept.length) {
+        lines.push(`Kept ${kept.length} unused volume(s) because a Dockge stack declares them: ${kept.join(", ")}`);
+    }
+    if (failed.length) {
+        lines.push(`Couldn't remove ${failed.length} volume(s): ${failed.join(", ")}`);
+    }
+    return lines.join("\n");
+}
+
+/**
  * Remove all build cache (what "prune -a" did for it). Dockge's image has no buildx plugin, so the CLI
  * falls back to the legacy builder command, which works (it's the same daemon API) but prints a
  * multi-line deprecation notice that reads like an error; only the result line is kept.

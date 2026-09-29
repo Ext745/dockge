@@ -210,7 +210,7 @@
     "imagePruneAll": "Also all images without at least one container associated to them (except images a Dockge stack uses)",
     "networkPruneMsg": "This will remove all custom networks not used by at least one container.",
     "volumePruneMsg": "This will remove anonymous local volumes not used by at least one container.",
-    "volumePruneAll": "Also all local volumes not used by at least one container",
+    "volumePruneAll": "Also all local volumes not used by at least one container (except volumes a Dockge stack declares, so a stopped stack keeps its data)",
     "containerDeleteMsg": "The selected containers will be deleted.",
     "imageDeleteMsg": "The selected images will be deleted.",
     "imagePullInfoMsg": "The following dangling images cannot be updated:",
