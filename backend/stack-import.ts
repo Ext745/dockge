@@ -8,6 +8,7 @@ import { acceptedComposeFileNames } from "../common/util-common";
 import { Stack } from "./stack";
 import { validateCompose } from "./compose-validate";
 import { log } from "./log";
+import { isSelfContainer, selfContainerId } from "./self-container";
 import { detectIndent } from "../common/yaml-indent";
 import { finalizeContainerImport, rollbackContainerImport } from "./container-import";
 
@@ -36,6 +37,12 @@ export interface ImportRecord {
     targetDir : string;
     redeployed : boolean;
     notes : string[];
+    // Set for a stack imported from Portainer
+    portainer? : {
+        url : string;
+        stackId : number;
+        environment : string;
+    };
     // Set for a "docker run" container import: the original, kept stopped and renamed until Keep
     container? : {
         id : string;
@@ -186,6 +193,9 @@ async function checkImportable(server : DockgeServer, c : ImportCandidate) : Pro
     if (c.configFiles.length === 0) {
         return no("Docker doesn't know where this project's compose file is.");
     }
+    if (c.configFiles.some((f) => /^\/data\/compose\/\d+\//.test(f))) {
+        return no("Deployed by Portainer (its files live inside Portainer). Import it from the Portainer section below, which also brings its stack variables.");
+    }
     if (c.configFiles.length > 2) {
         return no("Projects started with more than two -f files aren't supported yet.");
     }
@@ -207,13 +217,17 @@ async function checkImportable(server : DockgeServer, c : ImportCandidate) : Pro
  * @returns Is Dockge
  */
 async function isSelfProject(project : string) : Promise<boolean> {
-    const hostname = process.env.HOSTNAME;
-    if (!hostname) {
+    if (!await selfContainerId()) {
         return false;
     }
     try {
         const res = await childProcessAsync.spawn("docker", [ "ps", "-q", "--filter", `label=com.docker.compose.project=${project}` ], { encoding: "utf-8" });
-        return String(res.stdout || "").split("\n").some((id) => id.trim() && hostname.startsWith(id.trim()));
+        for (const id of String(res.stdout || "").split("\n").filter((l) => l.trim())) {
+            if (await isSelfContainer(id)) {
+                return true;
+            }
+        }
+        return false;
     } catch {
         return false;
     }
@@ -551,6 +565,11 @@ export async function rollbackImport(server : DockgeServer, socket : DockgeSocke
     await fsAsync.rm(path.join(backupRoot(server), id), { recursive: true,
         force: true });
     server.sendStackList();
+    if (record.portainer) {
+        return record.redeployed
+            ? `Removed ${record.name} from Dockge. Its containers keep running; to hand it back to Portainer, use "Update the stack" on it in Portainer.`
+            : `Removed ${record.name} from Dockge. Portainer still manages it as before.`;
+    }
     return record.redeployed
         ? `Removed ${record.name} from Dockge. Its containers keep running; to run it from its original files again, run "docker compose up -d" in ${record.workingDir}.`
         : `Removed ${record.name} from Dockge. It's back to how it was.`;

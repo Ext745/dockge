@@ -4,6 +4,7 @@ import { DockgeServer } from "../dockge-server";
 import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationError } from "../util-server";
 import { finalizeImport, importStack, ImportResult, listImportCandidates, listImports, rollbackImport } from "../stack-import";
 import { generateCompose, importContainer, listContainerCandidates } from "../container-import";
+import { importPortainerStack, listPortainerStacks, PortainerConnection } from "../portainer-import";
 
 const optionalDir = (dir : unknown) : string | undefined => {
     if (dir === undefined || dir === null || dir === "") {
@@ -13,6 +14,19 @@ const optionalDir = (dir : unknown) : string | undefined => {
         throw new ValidationError("Folder must be a string");
     }
     return dir.trim();
+};
+
+// The Portainer access token travels with each request and is never stored by Dockge
+const portainerConnection = (conn : unknown) : PortainerConnection => {
+    const c = conn as Record<string, unknown>;
+    if (!c || typeof c.url !== "string" || typeof c.apiKey !== "string" || !c.url.trim() || !c.apiKey.trim()) {
+        throw new ValidationError("Enter Portainer's URL and an access token");
+    }
+    return {
+        url: c.url.trim(),
+        apiKey: c.apiKey.trim(),
+        insecure: Boolean(c.insecure),
+    };
 };
 
 export class ImportSocketHandler extends AgentSocketHandler {
@@ -98,6 +112,48 @@ export class ImportSocketHandler extends AgentSocketHandler {
                 callbackResult({
                     ok: true,
                     results: [ result ],
+                    imports: await listImports(server),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("getPortainerStacks", async (conn : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                callbackResult({
+                    ok: true,
+                    stacks: await listPortainerStacks(server, portainerConnection(conn)),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("importPortainerStacks", async (conn : unknown, ids : unknown, redeploy : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                const connection = portainerConnection(conn);
+                if (!Array.isArray(ids) || !ids.every((id) => Number.isInteger(id))) {
+                    throw new ValidationError("ids must be a list of Portainer stack ids");
+                }
+                const results : ImportResult[] = [];
+                for (const id of ids as number[]) {
+                    try {
+                        results.push(await importPortainerStack(server, socket, connection, id, Boolean(redeploy)));
+                    } catch (e) {
+                        results.push({
+                            name: `Portainer stack ${id}`,
+                            ok: false,
+                            msg: e instanceof Error ? e.message : String(e),
+                            notes: [],
+                        });
+                    }
+                }
+                callbackResult({
+                    ok: true,
+                    results,
                     imports: await listImports(server),
                 }, callback);
             } catch (e) {

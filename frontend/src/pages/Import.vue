@@ -88,6 +88,57 @@
                 </div>
             </div>
 
+            <!-- Portainer stacks -->
+            <div class="shadow-box big-padding mb-3">
+                <h5 class="mb-1">{{ $t("importPortainerTitle") }}</h5>
+                <div class="form-text mb-2">{{ $t("importPortainerHint") }}</div>
+                <form class="portainer-form mb-2" @submit.prevent="connectPortainer">
+                    <input id="portainerUrl" v-model="portainer.url" class="form-control" :placeholder="'https://portainer.lan:9443'" :disabled="portainerLoading || importing" />
+                    <input id="portainerKey" v-model="portainer.apiKey" type="password" class="form-control" :placeholder="$t('importPortainerToken')" autocomplete="off" :disabled="portainerLoading || importing" />
+                    <button type="submit" class="btn btn-normal text-nowrap" :disabled="portainerLoading || importing || !portainer.url || !portainer.apiKey">
+                        <font-awesome-icon :icon="portainerLoading ? 'spinner' : 'plug'" :spin="portainerLoading" class="me-1" />{{ $t("importPortainerConnect") }}
+                    </button>
+                </form>
+                <div class="form-check mb-2">
+                    <input id="portainerInsecure" v-model="portainer.insecure" class="form-check-input" type="checkbox" />
+                    <label class="form-check-label" for="portainerInsecure">{{ $t("importPortainerInsecure") }}</label>
+                </div>
+
+                <template v-if="portainerStacks !== null">
+                    <div v-if="portainerStacks.length === 0" class="subtle py-2">{{ $t("importPortainerNone") }}</div>
+                    <div v-else class="candidate-list mb-3">
+                        <label v-for="p in portainerStacks" :key="p.id" class="candidate" :class="{ disabled: !p.importable }">
+                            <input v-model="portainerSelected" type="checkbox" class="form-check-input mt-1" :value="p.id" :disabled="!p.importable || importing" />
+                            <div class="candidate-body">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <strong>{{ p.name }}</strong>
+                                    <span class="badge bg-secondary">{{ p.environment }}</span>
+                                    <span class="badge" :class="p.status === 'running' ? 'bg-primary' : 'bg-secondary'">{{ p.status }}</span>
+                                    <span v-if="p.git" class="badge bg-secondary">Git</span>
+                                    <span v-if="p.variables" class="small subtle">{{ $t("importPortainerVars", [ p.variables ]) }}</span>
+                                </div>
+                                <div v-if="p.reason" class="small reason">{{ p.reason }}</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <template v-if="portainerStacks.length > 0">
+                        <div class="form-check">
+                            <input id="portainerRedeploy" v-model="portainerRedeploy" class="form-check-input" type="checkbox" :disabled="importing" />
+                            <label class="form-check-label" for="portainerRedeploy">{{ $t("importRedeploy") }}</label>
+                        </div>
+                        <div class="form-text mb-3">{{ $t("importRedeployHint") }}</div>
+                        <p class="small reason mb-3">
+                            <font-awesome-icon icon="exclamation-triangle" class="me-1" />{{ $t("importPortainerWarning") }}
+                        </p>
+                        <button type="button" class="btn btn-primary" :disabled="portainerSelected.length === 0 || importing" @click="importPortainer">
+                            <font-awesome-icon :icon="importing ? 'spinner' : 'file-import'" :spin="importing" class="me-1" />
+                            {{ $t("importSelected", [ portainerSelected.length ]) }}
+                        </button>
+                    </template>
+                </template>
+            </div>
+
             <!-- Results of the last run -->
             <div v-if="results.length > 0" class="shadow-box big-padding mb-3">
                 <h5 class="mb-2">{{ $t("importResults") }}</h5>
@@ -112,7 +163,8 @@
                     <div class="me-auto">
                         <router-link :to="stackUrl(rec.name)"><strong>{{ rec.name }}</strong></router-link>
                         <div class="small subtle">
-                            <template v-if="rec.container">{{ $t("importFromContainer", [ rec.container.name, rec.container.renamedTo ]) }}</template>
+                            <template v-if="rec.portainer">{{ $t("importFromPortainer", [ rec.portainer.environment ]) }}</template>
+                            <template v-else-if="rec.container">{{ $t("importFromContainer", [ rec.container.name, rec.container.renamedTo ]) }}</template>
                             <template v-else>{{ $t("importFrom", [ rec.workingDir ]) }}</template>
                             · {{ new Date(rec.importedAt).toLocaleString() }}
                             <span v-if="rec.redeployed && !rec.container"> · {{ $t("importWasRedeployed") }}</span>
@@ -176,6 +228,16 @@ export default {
             reviewStackName: "",
             reviewYAML: "",
             reviewNotes: [],
+            // The access token only lives in this page; it's sent with each request and never saved
+            portainer: {
+                url: "",
+                apiKey: "",
+                insecure: false,
+            },
+            portainerLoading: false,
+            portainerStacks: null,
+            portainerSelected: [],
+            portainerRedeploy: false,
         };
     },
     computed: {
@@ -189,6 +251,9 @@ export default {
             }
             if (rec.container) {
                 return this.$t("importRollbackContainerMsg", [ rec.name, rec.container.name ]);
+            }
+            if (rec.portainer) {
+                return this.$t(rec.redeployed ? "importRollbackPortainerRedeployedMsg" : "importRollbackPortainerMsg", [ rec.name ]);
             }
             return this.$t(rec.redeployed ? "importRollbackRedeployedMsg" : "importRollbackMsg", [ rec.name, rec.workingDir ]);
         },
@@ -245,6 +310,36 @@ export default {
                 this.results = res.results;
                 this.imports = res.imports;
                 this.selected = [];
+                this.load();
+            });
+        },
+
+        connectPortainer() {
+            this.portainerLoading = true;
+            this.$root.emitAgent(this.endpoint, "getPortainerStacks", { ...this.portainer }, (res) => {
+                this.portainerLoading = false;
+                if (!res.ok) {
+                    this.$root.toastRes(res);
+                    return;
+                }
+                this.portainerStacks = res.stacks;
+                this.portainerSelected = this.portainerSelected.filter((id) => res.stacks.some((p) => p.id === id && p.importable));
+            });
+        },
+
+        importPortainer() {
+            this.importing = true;
+            this.results = [];
+            this.$root.emitAgent(this.endpoint, "importPortainerStacks", { ...this.portainer }, [ ...this.portainerSelected ], this.portainerRedeploy, (res) => {
+                this.importing = false;
+                if (!res.ok) {
+                    this.$root.toastRes(res);
+                    return;
+                }
+                this.results = res.results;
+                this.imports = res.imports;
+                this.portainerSelected = [];
+                this.connectPortainer();
                 this.load();
             });
         },
@@ -368,6 +463,16 @@ export default {
 
     .msg {
         white-space: pre-wrap;
+    }
+}
+
+.portainer-form {
+    display: grid;
+    grid-template-columns: 2fr 2fr auto;
+    gap: 8px;
+
+    @media (max-width: 770px) {
+        grid-template-columns: 1fr;
     }
 }
 

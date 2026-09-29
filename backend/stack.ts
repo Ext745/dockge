@@ -1,6 +1,7 @@
 import { DockgeServer } from "./dockge-server";
 import fs, { promises as fsAsync } from "fs";
 import { log } from "./log";
+import { isSelfContainer, selfContainerId } from "./self-container";
 import yaml from "yaml";
 import dotenv from "dotenv";
 import { stackComposePorts } from "../common/compose-ports";
@@ -185,17 +186,21 @@ export class Stack {
     }
 
     async isSelfStack(): Promise<boolean> {
-        const hostname = process.env.HOSTNAME;
-        if (!hostname) {
+        if (!await selfContainerId()) {
             return false;
         }
         try {
-            const result = await childProcessAsync.spawn("docker", [...this.composeArgs, "ps", "-q"], {
+            const result = await childProcessAsync.spawn("docker", [ ...this.composeArgs, "ps", "-q" ], {
                 cwd: this.path,
                 encoding: "utf-8",
             });
             const containerIds = result.stdout?.toString().trim().split("\n").filter(Boolean) || [];
-            return containerIds.includes(hostname);
+            for (const id of containerIds) {
+                if (await isSelfContainer(id)) {
+                    return true;
+                }
+            }
+            return false;
         } catch {
             return false;
         }

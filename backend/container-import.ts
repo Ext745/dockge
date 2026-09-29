@@ -8,6 +8,7 @@ import { Stack } from "./stack";
 import { validateCompose } from "./compose-validate";
 import { ImportRecord, ImportResult } from "./stack-import";
 import { log } from "./log";
+import { isSelfContainer } from "./self-container";
 
 const VALID_NAME = /^[a-z0-9][a-z0-9_-]*$/;
 // Suffix the original container gets while the imported stack runs in its place
@@ -63,7 +64,6 @@ function toStackName(name : string) : string {
  */
 export async function listContainerCandidates(server : DockgeServer) : Promise<ContainerCandidate[]> {
     const lines = (await docker([ "ps", "-a", "--no-trunc", "--format", "{{json .}}" ])).split("\n").filter(Boolean);
-    const hostname = process.env.HOSTNAME || "";
     const candidates : ContainerCandidate[] = [];
     for (const line of lines) {
         const c = JSON.parse(line) as { ID : string, Names : string, Image : string, State : string, Status : string, Labels : string };
@@ -85,7 +85,7 @@ export async function listContainerCandidates(server : DockgeServer) : Promise<C
             stackName,
             importable: true,
         };
-        if (hostname && c.ID.startsWith(hostname)) {
+        if (await isSelfContainer(c.ID)) {
             // Dockge itself (a bare "docker run" install): never offered
             continue;
         } else if (await fileExists(path.join(server.stacksDir, stackName))) {
@@ -452,7 +452,7 @@ export async function importContainer(server : DockgeServer, socket : DockgeSock
     if (c.Config?.Labels?.["com.docker.compose.project"]) {
         throw new ValidationError("This container belongs to a compose project; import the project instead.");
     }
-    if (process.env.HOSTNAME && String(c.Id).startsWith(process.env.HOSTNAME)) {
+    if (await isSelfContainer(String(c.Id))) {
         throw new ValidationError("This is Dockge itself.");
     }
     const name = String(c.Name).replace(/^\//, "");

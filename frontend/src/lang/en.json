@@ -284,5 +284,16 @@
     "importContainerConfirm": "Import",
     "importContainerSafety": "{0} will be stopped and renamed to {1} (set not to restart), then the stack is deployed in its place: a short interruption. Its volumes are reused, so no data is lost. If the deploy fails, {0} is put back automatically; afterwards, Roll back restores it and Keep removes it.",
     "importFromContainer": "from container {0} (kept stopped as {1})",
-    "importRollbackContainerMsg": "Remove stack {0} and put container {1} back as it was? Its volumes are kept."
+    "importRollbackContainerMsg": "Remove stack {0} and put container {1} back as it was? Its volumes are kept.",
+    "importPortainerTitle": "Portainer stacks",
+    "importPortainerHint": "Connect with a Portainer access token (Portainer → My account → Access tokens) to import its compose stacks, including their stack variables. The token is only used on this page and is never saved.",
+    "importPortainerToken": "Access token",
+    "importPortainerConnect": "Connect",
+    "importPortainerInsecure": "Accept a self-signed certificate (Portainer's default on port 9443)",
+    "importPortainerNone": "Portainer has no stacks.",
+    "importPortainerVars": "{0} variable(s)",
+    "importPortainerWarning": "Portainer keeps listing an imported stack. Don't use Portainer's Stop or Delete on it afterwards: those act on the running containers, which Dockge now manages.",
+    "importFromPortainer": "from Portainer ({0})",
+    "importRollbackPortainerMsg": "Remove {0} from Dockge? Portainer still manages it exactly as before.",
+    "importRollbackPortainerRedeployedMsg": "Remove {0} from Dockge? Its containers keep running; to hand it back to Portainer, use \"Update the stack\" on it in Portainer."
 }
