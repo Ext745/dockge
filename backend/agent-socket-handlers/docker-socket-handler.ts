@@ -9,6 +9,7 @@ import { promises as fsAsync } from "fs";
 import path from "path";
 import AdmZip from "adm-zip";
 import { findPortConflicts } from "../port-conflicts";
+import { validateCompose } from "../compose-validate";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -177,6 +178,22 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 callbackResult({
                     ok: true,
                     conflicts: await findPortConflicts(server, name, composeYAML, composeENV, composeOverrideYAML),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Whether the edited (unsaved) compose files are valid, per "docker compose config"
+        agentSocket.on("validateCompose", async (name : unknown, composeYAML : unknown, composeENV : unknown, composeOverrideYAML : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof(name) !== "string" || typeof(composeYAML) !== "string" || typeof(composeENV) !== "string" || typeof(composeOverrideYAML) !== "string") {
+                    throw new ValidationError("Invalid arguments");
+                }
+                callbackResult({
+                    ok: true,
+                    ...await validateCompose(server, name, composeYAML, composeENV, composeOverrideYAML),
                 }, callback);
             } catch (e) {
                 callbackError(e, callback);

@@ -237,5 +237,14 @@
     "back": "Back",
     "menu": "Menu",
     "moreActions": "More actions",
-    "resizeStackList": "Drag to resize the stack list (double-click to reset)"
+    "resizeStackList": "Drag to resize the stack list (double-click to reset)",
+    "close": "Close",
+    "formatYAML": "Format",
+    "formatYAMLHint": "Tidy indentation, tabs and trailing spaces without changing what the file means",
+    "formatOnSave": "Format on save",
+    "formatDone": "Formatted",
+    "formatNoChange": "Already formatted",
+    "composeInvalidTitle": "Compose file has errors",
+    "composeInvalidSaveIntro": "docker compose can't read this file, so Deploy would fail. Save it anyway?",
+    "composeInvalidDeployIntro": "docker compose can't read this file, so it can't be deployed. Fix the error below and try again."
 }

@@ -325,7 +325,19 @@
                         </BModal>
                     </div>
 
-                    <h4 class="mb-3">{{ stack.composeFileName }}</h4>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <h4 class="mb-0 me-auto">{{ stack.composeFileName }}</h4>
+                        <template v-if="isEditMode">
+                            <div class="form-check mb-0">
+                                <input id="formatOnSave" v-model="formatOnSave" class="form-check-input" type="checkbox">
+                                <label class="form-check-label" for="formatOnSave">{{ $t("formatOnSave") }}</label>
+                            </div>
+                            <button type="button" class="btn btn-normal btn-sm" :title="$t('formatYAMLHint')" @click="formatCompose(false)">
+                                <font-awesome-icon icon="wand-magic-sparkles" class="me-1" />
+                                {{ $t("formatYAML") }}
+                            </button>
+                        </template>
+                    </div>
 
                     <!-- YAML editor -->
                     <div class="shadow-box mb-3 editor-box" :class="{'edit-mode' : isEditMode}">
@@ -468,6 +480,11 @@
                 <p class="mb-0 small">{{ $t("portInUseHint") }}</p>
             </BModal>
 
+            <BModal v-model="showComposeInvalidDialog" :title="$t('composeInvalidTitle')" :cancelTitle="$t('cancel')" :okTitle="$t(pendingValidateAction === 'save' ? 'saveAnyway' : 'close')" :okOnly="pendingValidateAction !== 'save'" okVariant="warning" @ok="continueAfterInvalid">
+                <p>{{ $t(pendingValidateAction === "save" ? "composeInvalidSaveIntro" : "composeInvalidDeployIntro") }}</p>
+                <pre class="compose-invalid-message mb-0">{{ composeInvalidMessage }}</pre>
+            </BModal>
+
             <!-- Delete Dialog -->
             <BModal v-model="showDeleteDialog" :cancelTitle="$t('cancel')" :okTitle="$t('deleteStack')" okVariant="danger" @ok="deleteDialog">
                 {{ $t("deleteStackMsg") }}
@@ -525,6 +542,7 @@ import {
 import { BModal, BDropdown, BDropdownItem, BDropdownDivider } from "bootstrap-vue-next";
 import NetworkInput from "../components/NetworkInput.vue";
 import ProgressTerminal from "../components/ProgressTerminal.vue";
+import { formatComposeYAML } from "../util-yaml-format";
 import dotenv from "dotenv";
 import { ref } from "vue";
 
@@ -539,6 +557,20 @@ services:
 const envDefault = "# VARIABLE=value #comment";
 
 let yamlErrorTimeout = null;
+
+const FORMAT_ON_SAVE_KEY = "dockge-format-on-save";
+
+/**
+ * "Format on save" is a per-browser preference, off by default.
+ * @returns {boolean} Whether it is on
+ */
+function loadFormatOnSave() {
+    try {
+        return localStorage.getItem(FORMAT_ON_SAVE_KEY) === "1";
+    } catch (e) {
+        return false;
+    }
+}
 
 let serviceStatusTimeout = null;
 let dockerStatsTimeout = null;
@@ -592,6 +624,12 @@ export default {
             jsonConfig: {},
             envsubstJSONConfig: {},
             yamlError: "",
+            // Set when jsonConfig was just parsed from the text, so the jsonConfig watcher doesn't write it back
+            jsonConfigFromYAML: false,
+            formatOnSave: loadFormatOnSave(),
+            showComposeInvalidDialog: false,
+            composeInvalidMessage: "",
+            pendingValidateAction: null,
             processing: true,
             showPortConflictDialog: false,
             portConflictList: [],
@@ -814,8 +852,21 @@ export default {
             deep: true,
         },
 
+        formatOnSave(value) {
+            try {
+                localStorage.setItem(FORMAT_ON_SAVE_KEY, value ? "1" : "0");
+            } catch (e) {
+                // localStorage may be unavailable (private browsing, disabled storage, etc.)
+            }
+        },
+
         jsonConfig: {
             handler() {
+                // Parsed from the text: writing it back would only lose formatting, quotes and "key:" nulls
+                if (this.jsonConfigFromYAML) {
+                    this.jsonConfigFromYAML = false;
+                    return;
+                }
                 if (!this.editorFocus) {
                     console.debug("jsonConfig changed");
 
@@ -1040,11 +1091,95 @@ export default {
         },
 
         deployStack() {
-            this.checkPortsThen("deploy");
+            this.prepareThen("deploy");
         },
 
         saveStack() {
-            this.checkPortsThen("save");
+            this.prepareThen("save");
+        },
+
+        /**
+         * Before Save/Deploy: format (if "Format on save" is on), then check the file is valid compose,
+         * then check its ports.
+         * @param {"save" | "deploy"} action What to run once cleared
+         * @returns {void}
+         */
+        prepareThen(action) {
+            if (this.formatOnSave) {
+                this.formatCompose(true);
+            }
+            this.validateThen(action);
+        },
+
+        /**
+         * Tidy compose.yaml (and the override) without changing their meaning. See formatComposeYAML().
+         * @param {boolean} quiet Don't toast (Format on save); a file that can't be parsed is then left for validateThen() to report
+         * @returns {void}
+         */
+        formatCompose(quiet) {
+            let changed = false;
+            for (const key of [ "composeYAML", "composeOverrideYAML" ]) {
+                const text = this.stack[key];
+                if (!text) {
+                    continue;
+                }
+                const result = formatComposeYAML(text);
+                if (!result.ok) {
+                    if (!quiet) {
+                        this.$root.toastError(result.error);
+                    }
+                    return;
+                }
+                if (result.changed) {
+                    this.stack[key] = result.text;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                this.yamlCodeChange();
+            }
+            if (!quiet) {
+                this.$root.toastSuccess(this.$t(changed ? "formatDone" : "formatNoChange"));
+            }
+        },
+
+        /**
+         * Ask the agent whether the edited files are a valid compose project ("docker compose config"),
+         * the way Deploy will read them. An invalid file blocks Deploy (it would fail anyway) and asks
+         * before Save. An agent without this check (older version) or an error never blocks.
+         * @param {"save" | "deploy"} action What to run once cleared
+         * @returns {void}
+         */
+        validateThen(action) {
+            this.processing = true;
+            let settled = false;
+            const settle = (res) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                this.processing = false;
+                if (res?.ok && res.valid === false) {
+                    this.composeInvalidMessage = res.message;
+                    this.pendingValidateAction = action;
+                    this.showComposeInvalidDialog = true;
+                } else {
+                    this.checkPortsThen(action);
+                }
+            };
+            const timeout = setTimeout(() => settle(null), 10000);
+            this.$root.emitAgent(this.stack.endpoint, "validateCompose", this.stack.name || "", this.stack.composeYAML, this.stack.composeENV, this.stack.composeOverrideYAML || "", (res) => {
+                clearTimeout(timeout);
+                settle(res);
+            });
+        },
+
+        continueAfterInvalid() {
+            const action = this.pendingValidateAction;
+            this.pendingValidateAction = null;
+            if (action === "save") {
+                this.checkPortsThen("save");
+            }
         },
 
         doDeployStack() {
@@ -1243,6 +1378,7 @@ export default {
                 let { config, doc } = this.yamlToJSON(this.stack.composeYAML);
 
                 this.yamlDoc = doc;
+                this.jsonConfigFromYAML = true;
                 this.jsonConfig = config;
 
                 let env = dotenv.parse(this.stack.composeENV);
@@ -1386,6 +1522,17 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.compose-invalid-message {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 40vh;
+    overflow: auto;
+    font-size: 0.85rem;
+    padding: 10px;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
 @import "../styles/vars.scss";
 
 .terminal {

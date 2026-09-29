@@ -44,6 +44,20 @@
 </template>
 
 <script>
+/**
+ * Whether two compose "networks" maps define the same networks, ignoring key order.
+ * @param {object} a Networks
+ * @param {object} b Networks
+ * @returns {boolean} Same networks
+ */
+function sameNetworks(a, b) {
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) {
+        return false;
+    }
+    return keys.every((key) => key in b && JSON.stringify(a[key] ?? null) === JSON.stringify(b[key] ?? null));
+}
+
 export default {
     data() {
         return {
@@ -175,17 +189,24 @@ export default {
                 return;
             }
 
-            this.jsonConfig.networks = {};
+            const networks = {};
 
             // Internal networks
             for (const networkRow of this.networkList) {
-                this.jsonConfig.networks[networkRow.key] = networkRow.value;
+                networks[networkRow.key] = networkRow.value;
             }
 
             // External networks
             for (const networkName in this.externalList) {
-                this.jsonConfig.networks[networkName] = this.externalList[networkName];
+                networks[networkName] = this.externalList[networkName];
             }
+
+            // Loading the list back from the file is not an edit: rewriting the compose file then would
+            // only add "networks: {}" and drop its formatting
+            if (sameNetworks(networks, this.jsonConfig.networks ?? {})) {
+                return;
+            }
+            this.jsonConfig.networks = networks;
 
             console.debug("applyToYAML", this.jsonConfig.networks);
         }
