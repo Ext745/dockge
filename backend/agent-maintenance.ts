@@ -91,7 +91,11 @@ export class AgentMaintenance {
                     const nameWithTag = imageInfo.Repository + (noneTag ? "" : `:${imageInfo.Tag}`);
 
                     imageData.data.push({
-                        id: imageInfo.ID,
+                        // One row per tag, and several tags can share an image ID (always true on the
+                        // containerd image store): identify a tagged row by its name, so selecting it
+                        // selects only that row and Delete removes only that tag - deleting by ID hit
+                        // every tag of the image, and failed if a running container used another one
+                        id: noneTag ? imageInfo.ID : nameWithTag,
                         actionIds: { pull: nameWithTag },
                         values: {
                             Name: nameWithTag,
