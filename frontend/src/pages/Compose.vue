@@ -543,6 +543,7 @@ import { BModal, BDropdown, BDropdownItem, BDropdownDivider } from "bootstrap-vu
 import NetworkInput from "../components/NetworkInput.vue";
 import ProgressTerminal from "../components/ProgressTerminal.vue";
 import { formatComposeYAML } from "../util-yaml-format";
+import { applyJSONChanges, detectIndent, toPlainJSON } from "../util-yaml-sync";
 import dotenv from "dotenv";
 import { ref } from "vue";
 
@@ -619,6 +620,7 @@ export default {
             editorFocus };
     },
     yamlDoc: null,  // For keeping the yaml comments
+    jsonSnapshot: undefined,  // jsonConfig as last parsed/synced, to diff form edits against (not reactive)
     data() {
         return {
             jsonConfig: {},
@@ -869,16 +871,27 @@ export default {
                 }
                 if (!this.editorFocus) {
                     console.debug("jsonConfig changed");
+                    const after = toPlainJSON(this.jsonConfig);
 
-                    let doc = new Document(this.jsonConfig);
-
-                    // Stick back the yaml comments
-                    if (this.yamlDoc) {
-                        copyYAMLComments(doc, this.yamlDoc);
+                    if (this.yamlDoc && this.yamlDoc.errors.length === 0 && this.yamlDoc.contents && this.jsonSnapshot !== undefined) {
+                        // Edit made through a form: patch only what changed into the parsed document, so the
+                        // rest of the file keeps its quotes, inline lists, "key:" nulls, comments and indentation
+                        applyJSONChanges(this.yamlDoc, this.jsonSnapshot, after);
+                        this.stack.composeYAML = this.yamlDoc.toString({
+                            indent: detectIndent(this.stack.composeYAML),
+                            lineWidth: 0,
+                            flowCollectionPadding: false,
+                        });
+                    } else {
+                        // Nothing parsed to patch (empty or new file): build it from the data
+                        let doc = new Document(this.jsonConfig);
+                        if (this.yamlDoc) {
+                            copyYAMLComments(doc, this.yamlDoc);
+                        }
+                        this.stack.composeYAML = doc.toString();
+                        this.yamlDoc = doc;
                     }
-
-                    this.stack.composeYAML = doc.toString();
-                    this.yamlDoc = doc;
+                    this.jsonSnapshot = after;
                 }
             },
             deep: true,
@@ -1378,6 +1391,7 @@ export default {
                 let { config, doc } = this.yamlToJSON(this.stack.composeYAML);
 
                 this.yamlDoc = doc;
+                this.jsonSnapshot = toPlainJSON(config);
                 this.jsonConfigFromYAML = true;
                 this.jsonConfig = config;
 

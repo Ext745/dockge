@@ -119,6 +119,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Delete works on a broken compose file** | Deleting runs `docker compose down`, which refuses to run when `compose.yaml` is invalid, so a stack saved with a typo (or one whose Deploy failed on a bad file) could never be deleted from the UI. Delete now falls back to `docker compose -p <project> down --remove-orphans` from an empty folder, which removes the stack's containers and networks by project name without reading the file, then removes the folder. Same bug exists upstream |
 | **Compose check before Save/Deploy** | The agent runs `docker compose config` on the edited, unsaved files (stack folder as project directory, same `global.env`/`.env` order as a deploy), so relative `env_file:`/bind paths and variables resolve as they will on deploy. An invalid file blocks Deploy and asks before Save; older agents that don't answer never block |
 | **Format / Format on save** | Tidies compose.yaml and the override with the same `yaml` library Dockge already uses: tab indentation → spaces, 2-space indent, trailing whitespace and CRLF removed, long lines never folded, comments/quotes/flow lists/anchors kept. Refuses if the result would parse to different data. "Format on save" is off by default and remembered per browser |
+| **Form editors edit in place** | The container/network/URL forms used to rebuild the whole compose file from parsed data, dropping quotes, turning inline lists into block lists and writing `key:` as `key: null`. Form edits are now diffed and applied to the parsed YAML document, so only the changed values move; a changed value keeps its quote style, new list items follow their neighbours, and the file's indentation width is kept |
 
 <table>
   <tr>
@@ -128,7 +129,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
   </tr>
 </table>
 
-Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). Two more turned up after v2.5.0: a stack whose `compose.yaml` was invalid could never be deleted, because Delete's `docker compose down` refuses to read a broken file (fixed in **v2.5.2**; the same bug is in darthrater78 and louislam), and the "Show update if available" check polled louislam's 1.x version endpoint, so it could never report a 2.x update (fixed in **v2.5.1**). And in **v2.6.0**: opening a stack silently rebuilt its compose text from the parsed data, so any Save dropped quotes, turned inline lists into block lists, wrote `key:` as `key: null` and added `networks: {}` in edit mode, even if you changed nothing; the file is now saved as written. (Edits made through the form editors still rebuild the file; making those edit in place is planned for the next release.) See `PORTING.md` in this repo for the full write-up of the porting work, live-test methodology, and the bugs found.
+Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). Two more turned up after v2.5.0: a stack whose `compose.yaml` was invalid could never be deleted, because Delete's `docker compose down` refuses to read a broken file (fixed in **v2.5.2**; the same bug is in darthrater78 and louislam), and the "Show update if available" check polled louislam's 1.x version endpoint, so it could never report a 2.x update (fixed in **v2.5.1**). And in **v2.6.0**: opening a stack silently rebuilt its compose text from the parsed data, so any Save dropped quotes, turned inline lists into block lists, wrote `key:` as `key: null` and added `networks: {}` in edit mode, even if you changed nothing; the file is now saved as written. Edits made through the form editors did the same until **v2.6.1**, which applies them in place. See `PORTING.md` in this repo for the full write-up of the porting work, live-test methodology, and the bugs found.
 
 What changed in each release of this fork: [Version History](#version-history).
 
@@ -168,6 +169,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🗑️ (Ext745/dockge 2.5.2 🆕) Delete works on a broken compose file — a stack saved with an invalid `compose.yaml` (or whose Deploy failed on one) can be deleted again, and its containers are removed too
 - ✅ (Ext745/dockge 2.6.0 🆕) Compose check before Save and Deploy — `docker compose config` reads the edited file first; a mistake like `imagee:` blocks Deploy and asks before Save, with compose's own error message
 - 🪄 (Ext745/dockge 2.6.0 🆕) Format button and "Format on save" — tabs become spaces, 2-space indentation, trailing spaces removed; comments, quotes and inline lists are kept, and it only applies if the file still means exactly the same
+- 🧩 (Ext745/dockge 2.6.1 🆕) Form editors keep your formatting — changing an image, port, URL, network or container through the forms now edits just that part of compose.yaml; quotes, inline lists, comments, `key:` and indentation elsewhere stay as you wrote them
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -223,7 +225,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.6.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.6.1` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
 ```yaml
       - PUID=1000
@@ -237,7 +239,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.6.0
+    image: ghcr.io/ext745/dockge:2.6.1
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -267,14 +269,14 @@ services:
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.6.0`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.6.1`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.6.0; F=/opt/docker/dockge/compose.yaml
+V=2.6.1; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -447,6 +449,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.6.1**](https://github.com/Ext745/dockge/releases/tag/v2.6.1) | 2026-09-28 | **Fix:** form editors (containers, networks, URLs) change only what you edited in compose.yaml instead of rebuilding the whole file |
 | [**v2.6.0**](https://github.com/Ext745/dockge/releases/tag/v2.6.0) | 2026-09-28 | Compose check (`docker compose config`) before Save and Deploy; Format button and "Format on save"; **fix:** Save no longer rewrites your compose file (quotes, inline lists, `key:` nulls, `networks: {}`) when you didn't change it through the form editors |
 | [**v2.5.2**](https://github.com/Ext745/dockge/releases/tag/v2.5.2) | 2026-09-27 | **Fix:** a stack with an invalid `compose.yaml` (a typo, or a failed Deploy of a bad file) can now be deleted; a running stack later saved with a broken file also has its containers removed |
 | [**v2.5.1**](https://github.com/Ext745/dockge/releases/tag/v2.5.1) | 2026-09-27 | **Fix:** "Show update if available" now checks this fork's GitHub Releases (it polled louislam's 1.x endpoint and never fired); About's "Check Update On GitHub" opens the releases page |
