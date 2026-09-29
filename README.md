@@ -123,6 +123,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Import Stacks** | Menu → Import Stacks, or Import next to an agent on Home. Lists compose projects Docker is running from outside the stacks folder, plus compose files found in a host folder you choose. Importing copies the compose file, override and `.env` into `stacks/<same project name>/` (so `<project>_` volumes/networks carry over), rewrites relative bind mounts, build contexts and secrets/config files to absolute paths into the original folder (no data moves), copies `env_file`s (the compose CLI must read them), validates with `docker compose config`, and keeps a backup record (original files + `docker inspect`) in Dockge's data folder. Containers are left running unless "recreate from Dockge" is ticked. Roll back removes Dockge's copy; the original folder is never modified. Files Dockge can't see (it usually runs in a container) are read through a short-lived `busybox` helper container |
 | **Import `docker run` containers** | Import Stacks → Single containers. The compose file is generated from `docker inspect` of the container and its exact image, keeping only settings that differ from the image (env, command, entrypoint, workdir, user, labels, healthcheck, stop signal) plus ports, restart policy, mounts, networks/network mode, DNS, extra hosts, devices, GPUs, capabilities, privileged, security options, sysctls, ulimits, tmpfs, resource limits and logging; anything unmapped is listed as a note. Existing named *and anonymous* volumes are reused as `external`, custom networks too. You review/edit the file and the stack name first. Import stops the original, renames it `<name>-pre-dockge` with restart `no`, then deploys; if that fails the original is restored automatically. Roll back removes the stack and restores the original's name, restart policy and running state; Keep removes the stopped original (its volumes stay) |
 | **Import Portainer stacks** | Import Stacks → Portainer stacks: Portainer URL + access token (sent per request, never stored; optional acceptance of Portainer's self-signed certificate). Uses Portainer's API (`/api/stacks`, `/api/stacks/{id}/file`, `/api/endpoints`). Stack variables, which Portainer keeps in its database and only passes at deploy time, are written to `.env`. Relative paths are resolved against Portainer's project folder (`/data/compose/<id>`), which is where Docker actually bind-mounted them from, so no data moves; `env_file`s are read from Portainer's data volume through the helper container. Swarm stacks, stacks on other Portainer environments and stacks Portainer is still deploying are refused with a reason; plain compose import refuses Portainer's projects and points here. Portainer keeps listing an imported stack: don't use its Stop/Delete on it afterwards |
+| **Prune protects stack images** | Agent Maintenance's image Prune and System Prune with "all images", and the REST API's `POST /api/system/prune`, used `docker … prune -a`, which removes every image no container uses — including the images of stacks that only run on demand (e.g. `profiles: ["manual"]` + `docker compose run --rm`), which can be many GB to re-download. Docker's prune can't exclude by name, so Dockge now runs Docker's prune without `-a` (plus `docker builder prune -a` for the build cache), then removes unused images itself, skipping any whose repository appears in a stack's compose file or override (with `.env`/`global.env` applied; all tags of that repository, since stacks often pick the tag through a variable). The summary lists what was kept. Images used by any container, running or stopped, are never removed. Plain `docker` commands are unaffected |
 
 <table>
   <tr>
@@ -132,7 +133,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
   </tr>
 </table>
 
-Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). Two more turned up after v2.5.0: a stack whose `compose.yaml` was invalid could never be deleted, because Delete's `docker compose down` refuses to read a broken file (fixed in **v2.5.2**; the same bug is in darthrater78 and louislam), and the "Show update if available" check polled louislam's 1.x version endpoint, so it could never report a 2.x update (fixed in **v2.5.1**). And in **v2.6.0**: opening a stack silently rebuilt its compose text from the parsed data, so any Save dropped quotes, turned inline lists into block lists, wrote `key:` as `key: null` and added `networks: {}` in edit mode, even if you changed nothing; the file is now saved as written. Edits made through the form editors did the same until **v2.6.1**, which applies them in place. **v2.7.0** also fixes a louislam-era leftover: the toast after first-run setup showed the raw key `successAdded`. **v2.8.0** stops the Import page from listing Dockge's own stack (it was already refused, but offering it at all was confusing). **v2.9.0** makes plain compose import refuse stacks deployed by Portainer (it would have read the wrong file and lost their variables) and send you to the Portainer import instead. It also makes Dockge recognise its own container reliably: the check used the container's hostname, which isn't the container id when Dockge's compose file sets `hostname:` or uses `network_mode: host`, so Dockge could then offer to import itself, and the older "don't stop the stack that contains Dockge" protection could miss. It now reads the container id from `/proc/self/mountinfo`, with the hostname only as a fallback. See `PORTING.md` in this repo for the full write-up of the porting work, live-test methodology, and the bugs found.
+Along the way, several pre-existing bugs in darthrater78's codebase were found and fixed by live-testing against real Docker daemons rather than trusting socket-protocol tests alone: two dangling-image detection bugs in Agent Maintenance, a missing `Terminal.vue.clearTerminal()` method that silently broke every progress-terminal call (Compose *and* Agent Maintenance pages), a broken `$root.getAgentName()` reference that prevented the Agent Maintenance page from mounting at all, a dead branch in the endpoint-display helper, and a login double-callback bug (three independent `if`s instead of if/else-if meant a stray `token` on a normal login could reach the 2FA branch and fire `callback()` twice). Two more turned up after v2.5.0: a stack whose `compose.yaml` was invalid could never be deleted, because Delete's `docker compose down` refuses to read a broken file (fixed in **v2.5.2**; the same bug is in darthrater78 and louislam), and the "Show update if available" check polled louislam's 1.x version endpoint, so it could never report a 2.x update (fixed in **v2.5.1**). And in **v2.6.0**: opening a stack silently rebuilt its compose text from the parsed data, so any Save dropped quotes, turned inline lists into block lists, wrote `key:` as `key: null` and added `networks: {}` in edit mode, even if you changed nothing; the file is now saved as written. Edits made through the form editors did the same until **v2.6.1**, which applies them in place. **v2.7.0** also fixes a louislam-era leftover: the toast after first-run setup showed the raw key `successAdded`. **v2.8.0** stops the Import page from listing Dockge's own stack (it was already refused, but offering it at all was confusing). **v2.9.0** makes plain compose import refuse stacks deployed by Portainer (it would have read the wrong file and lost their variables) and send you to the Portainer import instead. It also makes Dockge recognise its own container reliably: the check used the container's hostname, which isn't the container id when Dockge's compose file sets `hostname:` or uses `network_mode: host`, so Dockge could then offer to import itself, and the older "don't stop the stack that contains Dockge" protection could miss. It now reads the container id from `/proc/self/mountinfo`, with the hostname only as a fallback. **v2.10.0** makes Dockge's "prune all images" options keep the images your stacks use, even when a stack has no container (see the table above). See `PORTING.md` in this repo for the full write-up of the porting work, live-test methodology, and the bugs found.
 
 What changed in each release of this fork: [Version History](#version-history).
 
@@ -176,6 +177,7 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 📥 (Ext745/dockge 2.7.0 🆕) Import Stacks — bring compose stacks Dockge doesn't manage (already running, or found by scanning a host folder) under Dockge in a few clicks; volumes and networks carry over, data stays where it is, the original folder is never touched, and every import can be rolled back
 - 🐳 (Ext745/dockge 2.8.0 🆕) Import `docker run` containers — Dockge writes a compose file from the running container (only what you set, not the image's defaults; volumes reused so no data is lost) for you to review and edit, then swaps the container for a stack; the original is kept stopped until you choose Keep, and Roll back puts it back
 - 🧭 (Ext745/dockge 2.9.0 🆕) Import Portainer stacks — connect with a Portainer access token (never saved) and import its compose stacks, stack variables included; data stays exactly where Portainer's deploy put it, with the same backup and roll back
+- 🛡️ (Ext745/dockge 2.10.0 🆕) "Prune all images" keeps images your stacks use — an on-demand stack (like a build toolchain run with `docker compose run`) has no container between runs, so Docker treats its image as unused; Dockge's prune-all options now keep every tag of any image repository a stack's compose file names, and say which ones they kept
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
 
@@ -231,7 +233,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.9.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.10.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
 ```yaml
       - PUID=1000
@@ -245,7 +247,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.9.0
+    image: ghcr.io/ext745/dockge:2.10.0
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -275,14 +277,14 @@ services:
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.9.0`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.10.0`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.9.0; F=/opt/docker/dockge/compose.yaml
+V=2.10.0; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -455,6 +457,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.10.0**](https://github.com/Ext745/dockge/releases/tag/v2.10.0) | 2026-09-28 | "Prune all images" (Agent Maintenance and REST API) keeps images any stack's compose file uses, even with no container |
 | [**v2.9.0**](https://github.com/Ext745/dockge/releases/tag/v2.9.0) | 2026-09-28 | Import Portainer stacks (access token, stack variables to `.env`, data left in place, roll back); plain compose import now refuses Portainer's stacks; **fix:** Dockge recognises its own container even with a custom `hostname:` or `network_mode: host` |
 | [**v2.8.0**](https://github.com/Ext745/dockge/releases/tag/v2.8.0) | 2026-09-28 | Import `docker run` containers (review the generated compose, original kept until Keep, roll back); **fix:** Import no longer lists Dockge itself |
 | [**v2.7.0**](https://github.com/Ext745/dockge/releases/tag/v2.7.0) | 2026-09-28 | **Import Stacks** page: bring existing compose stacks (running, or found in a folder) under Dockge with backup and roll back; **fix:** first-run setup toast showed a raw `successAdded` key |

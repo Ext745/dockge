@@ -1,6 +1,6 @@
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.9.0
+    image: ghcr.io/ext745/dockge:2.10.0
     restart: unless-stopped
     ports:
       - 5001:5001

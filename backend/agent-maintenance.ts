@@ -5,6 +5,7 @@ import { DockgeSocket } from "./util-server";
 import { Terminal } from "./terminal";
 import { log } from "./log";
 import childProcessAsync from "promisify-child-process";
+import { describeCleanup, removeUnusedImages } from "./image-protection";
 
 export class AgentMaintenance {
 
@@ -247,8 +248,9 @@ export class AgentMaintenance {
     async prune(socket: DockgeSocket, artefact: string, all: boolean) {
         const terminalName = getAgentMaintenanceTerminalName(socket.endpoint);
 
+        // "All images" is done by Dockge (see removeUnusedImages) so images a stack uses are kept
         const dockerParams = [ artefact, "prune", "-f" ];
-        if (all) {
+        if (all && artefact !== "image") {
             dockerParams.push("-a");
         }
 
@@ -258,7 +260,23 @@ export class AgentMaintenance {
             throw new Error("Failed to prune, please check the terminal output for more information.");
         }
 
+        if (all && artefact === "image") {
+            await this.removeUnusedImagesWithOutput(socket, terminalName);
+        }
+
         return exitCode;
+    }
+
+    /**
+     * Remove every image no container uses, except those a Dockge stack's compose file names, and
+     * print what happened to the maintenance terminal.
+     * @param socket Socket
+     * @param terminalName Terminal
+     * @returns void
+     */
+    private async removeUnusedImagesWithOutput(socket: DockgeSocket, terminalName: string) {
+        const summary = describeCleanup(await removeUnusedImages(this.server));
+        await Terminal.exec(this.server, socket, terminalName, "echo", [ summary ], "");
     }
 
     async remove(socket: DockgeSocket, artefact: string, ids: string[]) {
@@ -300,10 +318,8 @@ export class AgentMaintenance {
     async systemPrune(socket: DockgeSocket, all: boolean, volumes: boolean) {
         const terminalName = getAgentMaintenanceTerminalName(socket.endpoint);
 
+        // Without -a: images are handled below so the ones Dockge stacks use are kept
         const dockerParams = [ "system", "prune", "-f" ];
-        if (all) {
-            dockerParams.push("-a");
-        }
         if (volumes) {
             dockerParams.push("--volumes");
         }
@@ -312,6 +328,12 @@ export class AgentMaintenance {
 
         if (exitCode !== 0) {
             throw new Error("Failed to prune, please check the terminal output for more information.");
+        }
+
+        if (all) {
+            // What -a also did: all build cache, not just dangling
+            await Terminal.exec(this.server, socket, terminalName, "docker", [ "builder", "prune", "-a", "-f" ], "");
+            await this.removeUnusedImagesWithOutput(socket, terminalName);
         }
 
         return exitCode;

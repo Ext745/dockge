@@ -12,6 +12,7 @@ import { VersionSyncHistoryService } from "../version-sync-history-service";
 import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
 import { Settings } from "../settings";
 import { encryptCredential } from "../services/agent-crypto";
+import { describeCleanup, removeUnusedImages } from "../image-protection";
 
 const STATUS_NAMES: Record<number, string> = {
     [UNKNOWN]: "unknown",
@@ -483,13 +484,18 @@ export class ApiRouter extends Router {
                     return;
                 }
 
-                const result = await childProcessAsync.spawn("docker", ["system", "prune", "-a", "-f"], {
+                // Like "docker system prune -a", except images a Dockge stack uses are kept
+                const result = await childProcessAsync.spawn("docker", [ "system", "prune", "-f" ], {
                     encoding: "utf-8",
                 });
+                await childProcessAsync.spawn("docker", [ "builder", "prune", "-a", "-f" ], {
+                    encoding: "utf-8",
+                });
+                const images = describeCleanup(await removeUnusedImages(server));
 
                 res.json({
                     ok: true,
-                    output: result?.stdout?.toString() || "",
+                    output: (result?.stdout?.toString() || "") + images + "\n",
                     endpoint: "",
                 });
             } catch (e) {
