@@ -5,6 +5,7 @@ import Setup from "./pages/Setup.vue";
 import Dashboard from "./pages/Dashboard.vue";
 import DashboardHome from "./pages/DashboardHome.vue";
 import AgentMaintenance from "./pages/AgentMaintenance.vue";
+import Import from "./pages/Import.vue";
 import Console from "./pages/Console.vue";
 import Compose from "./pages/Compose.vue";
 import ContainerTerminal from "./pages/ContainerTerminal.vue";
@@ -40,6 +41,14 @@ const routes = [
                             {
                                 path: "/agent/:endpoint",
                                 component: AgentMaintenance,
+                            },
+                            {
+                                path: "/import",
+                                component: Import,
+                            },
+                            {
+                                path: "/import/:endpoint",
+                                component: Import,
                             },
                             {
                                 path: "/compose",

@@ -27,6 +27,7 @@ import expressStaticGzip from "express-static-gzip";
 import path from "path";
 import { TerminalSocketHandler } from "./agent-socket-handlers/terminal-socket-handler";
 import { AgentMaintenanceSocketHandler } from "./agent-socket-handlers/agent-maintenance-socket-handler";
+import { ImportSocketHandler } from "./agent-socket-handlers/import-socket-handler";
 import { Stack } from "./stack";
 import { Cron } from "croner";
 import gracefulShutdown from "http-graceful-shutdown";
@@ -77,6 +78,7 @@ export class DockgeServer {
         new DockerSocketHandler(),
         new TerminalSocketHandler(),
         new AgentMaintenanceSocketHandler(),
+        new ImportSocketHandler(),
     ];
 
     /**

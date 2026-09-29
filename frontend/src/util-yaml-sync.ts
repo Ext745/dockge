@@ -1,4 +1,5 @@
 import { Document, isMap, isScalar, isSeq, Pair, Scalar, YAMLMap, YAMLSeq } from "yaml";
+export { detectIndent } from "../../common/yaml-indent";
 
 type JSONValue = null | boolean | number | string | JSONValue[] | { [key : string] : JSONValue };
 
@@ -9,22 +10,6 @@ type JSONValue = null | boolean | number | string | JSONValue[] | { [key : strin
  */
 export function toPlainJSON(value : unknown) : JSONValue | undefined {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
-}
-
-/**
- * The indentation width a YAML text uses: the smallest indent of any content line, 2 if none.
- * @param text YAML
- * @returns Spaces per level
- */
-export function detectIndent(text : string) : number {
-    let smallest = 0;
-    for (const match of text.matchAll(/^( +)[^ #\n]/gm)) {
-        const width = match[1].length;
-        if (smallest === 0 || width < smallest) {
-            smallest = width;
-        }
-    }
-    return smallest > 0 && smallest <= 8 ? smallest : 2;
 }
 
 const isObject = (v : unknown) : v is Record<string, JSONValue> => v !== null && typeof v === "object" && !Array.isArray(v);

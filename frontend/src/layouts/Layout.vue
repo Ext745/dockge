@@ -67,6 +67,12 @@
                             </li>
 
                             <li>
+                                <router-link to="/import" class="dropdown-item" :class="{ active: $route.path.startsWith('/import') }">
+                                    <font-awesome-icon icon="file-import" /> {{ $t("importTitle") }}
+                                </router-link>
+                            </li>
+
+                            <li>
                                 <router-link to="/settings/general" class="dropdown-item" :class="{ active: $route.path.includes('settings') }">
                                     <font-awesome-icon icon="cog" /> {{ $t("Settings") }}
                                 </router-link>
@@ -128,6 +134,9 @@
                     <button type="button" class="sheet-item" @click="scanFolder(); menuOpen = false">
                         <font-awesome-icon icon="arrows-rotate" fixed-width /> {{ $t("scanFolder") }}
                     </button>
+                    <router-link to="/import" class="sheet-item" @click="menuOpen = false">
+                        <font-awesome-icon icon="file-import" fixed-width /> {{ $t("importTitle") }}
+                    </router-link>
                     <button type="button" class="sheet-item" @click="menuOpen = false; $root.logout()">
                         <font-awesome-icon icon="sign-out-alt" fixed-width /> {{ $t("Logout") }}
                     </button>

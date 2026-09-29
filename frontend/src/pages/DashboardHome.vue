@@ -147,6 +147,11 @@
                                 <font-awesome-icon icon="wrench" class="me-1" />{{ $t("maintenance") }}
                             </router-link>
 
+                            <!-- Import stacks into this agent -->
+                            <router-link v-if="$root.agentStatusList[endpoint] === 'online'" class="btn btn-sm btn-normal me-2" :title="$t('importTooltip')" :to="endpoint !== '' ? `/import/${endpoint}` : '/import'">
+                                <font-awesome-icon icon="file-import" class="me-1" />{{ $t("importShort") }}
+                            </router-link>
+
                             <!-- Agent Display Name -->
                             <template v-if="$root.agentStatusList[endpoint]">
                                 <span v-if="endpoint === '' && agentItem.name === ''" class="badge bg-secondary me-2">Current</span>
