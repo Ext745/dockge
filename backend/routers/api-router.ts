@@ -12,7 +12,7 @@ import { VersionSyncHistoryService } from "../version-sync-history-service";
 import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sync";
 import { Settings } from "../settings";
 import { encryptCredential } from "../services/agent-crypto";
-import { describeCleanup, removeUnusedImages } from "../image-protection";
+import { describeCleanup, pruneAllBuildCache, removeUnusedImages } from "../image-protection";
 
 const STATUS_NAMES: Record<number, string> = {
     [UNKNOWN]: "unknown",
@@ -488,14 +488,12 @@ export class ApiRouter extends Router {
                 const result = await childProcessAsync.spawn("docker", [ "system", "prune", "-f" ], {
                     encoding: "utf-8",
                 });
-                await childProcessAsync.spawn("docker", [ "builder", "prune", "-a", "-f" ], {
-                    encoding: "utf-8",
-                });
+                const cache = await pruneAllBuildCache();
                 const images = describeCleanup(await removeUnusedImages(server));
 
                 res.json({
                     ok: true,
-                    output: (result?.stdout?.toString() || "") + images + "\n",
+                    output: (result?.stdout?.toString() || "") + cache + "\n" + images + "\n",
                     endpoint: "",
                 });
             } catch (e) {

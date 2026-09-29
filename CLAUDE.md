@@ -9,7 +9,7 @@ current, up-to-date list; that section is the canonical changelog, not a
 separate doc.
 
 Currently on `master`, synced with darthrater78/dockge through their
-v2.3.1, released through this fork's own v2.10.0
+v2.3.1, released through this fork's own v2.10.1
 (`ghcr.io/ext745/dockge`). Typecheck/lint clean project-wide (0 eslint
 errors), all changes live-tested against real Docker agents.
 
@@ -22,6 +22,10 @@ Standing rules:
   `DOCKER_HOST` at an isolated sidecar (e.g. `docker:27-dind`), never
   the host's own daemon - it may be running real, unrelated
   infrastructure that shouldn't be disturbed.
+- The dind sidecar itself runs on the host's daemon: remove it with
+  `docker rm -f -v` (dind keeps /var/lib/docker in an anonymous volume;
+  without -v every test run leaves ~70 MB-1.5 GB behind), and remove any
+  helper images pulled onto the host when done.
 - Before tagging a release, grep for the outgoing version string across
   the repo - the pinned image tag in `compose.yaml` and README's
   quickstart/one-line updater carry it (`Layout.vue` and `About.vue`

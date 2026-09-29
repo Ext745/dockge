@@ -5,7 +5,7 @@ import { DockgeSocket } from "./util-server";
 import { Terminal } from "./terminal";
 import { log } from "./log";
 import childProcessAsync from "promisify-child-process";
-import { describeCleanup, removeUnusedImages } from "./image-protection";
+import { describeCleanup, pruneAllBuildCache, removeUnusedImages } from "./image-protection";
 
 export class AgentMaintenance {
 
@@ -274,9 +274,13 @@ export class AgentMaintenance {
      * @param terminalName Terminal
      * @returns void
      */
-    private async removeUnusedImagesWithOutput(socket: DockgeSocket, terminalName: string) {
-        const summary = describeCleanup(await removeUnusedImages(this.server));
-        await Terminal.exec(this.server, socket, terminalName, "echo", [ summary ], "");
+    private async removeUnusedImagesWithOutput(socket: DockgeSocket, terminalName: string, alsoBuildCache = false) {
+        const lines = [];
+        if (alsoBuildCache) {
+            lines.push(await pruneAllBuildCache());
+        }
+        lines.push(describeCleanup(await removeUnusedImages(this.server)));
+        await Terminal.exec(this.server, socket, terminalName, "echo", [ lines.join("\n") ], "");
     }
 
     async remove(socket: DockgeSocket, artefact: string, ids: string[]) {
@@ -332,8 +336,7 @@ export class AgentMaintenance {
 
         if (all) {
             // What -a also did: all build cache, not just dangling
-            await Terminal.exec(this.server, socket, terminalName, "docker", [ "builder", "prune", "-a", "-f" ], "");
-            await this.removeUnusedImagesWithOutput(socket, terminalName);
+            await this.removeUnusedImagesWithOutput(socket, terminalName, true);
         }
 
         return exitCode;

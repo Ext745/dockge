@@ -128,6 +128,26 @@ export async function removeUnusedImages(server : DockgeServer) : Promise<Unused
 }
 
 /**
+ * Remove all build cache (what "prune -a" did for it). Dockge's image has no buildx plugin, so the CLI
+ * falls back to the legacy builder command, which works (it's the same daemon API) but prints a
+ * multi-line deprecation notice that reads like an error; only the result line is kept.
+ * @returns One line for the terminal / API output
+ */
+export async function pruneAllBuildCache() : Promise<string> {
+    try {
+        const res = await childProcessAsync.spawn("docker", [ "builder", "prune", "-a", "-f" ], { encoding: "utf-8",
+            maxBuffer: 16 * 1024 * 1024 });
+        const out = `${res.stdout ?? ""}\n${res.stderr ?? ""}`;
+        // Legacy builder: "Total reclaimed space: 95.43MB"; buildx: "Total:\t95.43MB"
+        const total = out.match(/^Total(?: reclaimed space)?:\s*(\S+)/m)?.[1];
+        return `Build cache: ${total ? total + " reclaimed" : "nothing to remove"}.`;
+    } catch (e) {
+        log.warn("image-protection", `Build cache prune failed: ${e}`);
+        return "Build cache: couldn't be pruned (see Dockge's log).";
+    }
+}
+
+/**
  * A short summary for the terminal / API output.
  * @param r Cleanup result
  * @returns Text
