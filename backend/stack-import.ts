@@ -9,6 +9,7 @@ import { Stack } from "./stack";
 import { validateCompose } from "./compose-validate";
 import { log } from "./log";
 import { detectIndent } from "../common/yaml-indent";
+import { finalizeContainerImport, rollbackContainerImport } from "./container-import";
 
 // Dockge stack names; compose project names that don't fit can't become a Dockge folder
 const VALID_NAME = /^[a-z0-9][a-z0-9_-]*$/;
@@ -35,6 +36,15 @@ export interface ImportRecord {
     targetDir : string;
     redeployed : boolean;
     notes : string[];
+    // Set for a "docker run" container import: the original, kept stopped and renamed until Keep
+    container? : {
+        id : string;
+        name : string;
+        renamedTo : string;
+        image : string;
+        restart : string;
+        wasRunning : boolean;
+    };
 }
 
 export interface ImportResult {
@@ -113,17 +123,18 @@ export async function listImportCandidates(server : DockgeServer, scanDir? : str
         const configFiles = (project.ConfigFiles || "").split(",").map((f) => f.trim()).filter(Boolean);
         configFiles.forEach((f) => seenFiles.add(f));
         const workingDir = await projectWorkingDir(project.Name) || (configFiles[0] ? path.dirname(configFiles[0]) : "");
-        const candidate = await checkImportable(server, {
+        // Dockge's own stack can never be imported into itself, so don't offer it at all
+        if (await isSelfProject(project.Name)) {
+            continue;
+        }
+        candidates.push(await checkImportable(server, {
             name: project.Name,
             source: "running",
             status: project.Status,
             workingDir,
             configFiles,
             importable: true,
-        });
-        candidates.push(await isSelfProject(project.Name) ? { ...candidate,
-            importable: false,
-            reason: "This is Dockge itself." } : candidate);
+        }));
     }
 
     // 2. Compose files in a folder the user chose
@@ -521,12 +532,20 @@ async function getRecord(server : DockgeServer, id : string) : Promise<ImportRec
 /**
  * Undo an import: remove Dockge's copy of the stack. Running containers are left alone, and the
  * original folder was never changed, so the stack keeps running from wherever it runs now.
+ * For a "docker run" container import, the new stack is removed and the original container restored.
  * @param server Server
+ * @param socket Socket, for the stack's terminal
  * @param id Import id
  * @returns A message for the user
  */
-export async function rollbackImport(server : DockgeServer, id : string) : Promise<string> {
+export async function rollbackImport(server : DockgeServer, socket : DockgeSocket, id : string) : Promise<string> {
     const record = await getRecord(server, id);
+    if (record.container) {
+        const msg = await rollbackContainerImport(server, socket, record);
+        await fsAsync.rm(path.join(backupRoot(server), id), { recursive: true,
+            force: true });
+        return msg;
+    }
     await fsAsync.rm(record.targetDir, { recursive: true,
         force: true });
     await fsAsync.rm(path.join(backupRoot(server), id), { recursive: true,
@@ -544,7 +563,10 @@ export async function rollbackImport(server : DockgeServer, id : string) : Promi
  * @returns void
  */
 export async function finalizeImport(server : DockgeServer, id : string) : Promise<void> {
-    await getRecord(server, id);
+    const record = await getRecord(server, id);
+    if (record.container) {
+        await finalizeContainerImport(record);
+    }
     await fsAsync.rm(path.join(backupRoot(server), id), { recursive: true,
         force: true });
 }

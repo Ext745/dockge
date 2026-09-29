@@ -268,12 +268,21 @@
     "importResults": "Import results",
     "importOpenStack": "Open stack",
     "importRecent": "Recent imports",
-    "importRecentHint": "Roll back removes Dockge's copy; Keep drops the rollback record once you're happy.",
+    "importRecentHint": "Roll back undoes an import (for a container, the original comes back as it was). Keep makes it permanent: the rollback record is dropped and, for a container, the stopped original is removed.",
     "importFrom": "from {0}",
     "importWasRedeployed": "redeployed from Dockge",
     "importRollback": "Roll back",
     "importKeep": "Keep",
     "importRollbackMsg": "Remove {0} from Dockge? Its containers and the original folder ({1}) are left exactly as they are.",
     "importRollbackRedeployedMsg": "Remove {0} from Dockge? Its containers keep running as they are now; to run it from its original files again, run \"docker compose up -d\" in {1}.",
-    "successAdded": "Added successfully."
+    "successAdded": "Added successfully.",
+    "importContainersTitle": "Single containers (docker run)",
+    "importContainersHint": "Containers started with docker run. Dockge writes a compose file that recreates each one, for you to review and edit before importing.",
+    "importNoContainers": "No docker run containers on this agent.",
+    "importReview": "Review & import",
+    "importReviewTitle": "Import container {0}",
+    "importContainerConfirm": "Import",
+    "importContainerSafety": "{0} will be stopped and renamed to {1} (set not to restart), then the stack is deployed in its place: a short interruption. Its volumes are reused, so no data is lost. If the deploy fails, {0} is put back automatically; afterwards, Roll back restores it and Keep removes it.",
+    "importFromContainer": "from container {0} (kept stopped as {1})",
+    "importRollbackContainerMsg": "Remove stack {0} and put container {1} back as it was? Its volumes are kept."
 }

@@ -3,6 +3,7 @@ import { AgentSocket } from "../../common/agent-socket";
 import { DockgeServer } from "../dockge-server";
 import { callbackError, callbackResult, checkLogin, DockgeSocket, ValidationError } from "../util-server";
 import { finalizeImport, importStack, ImportResult, listImportCandidates, listImports, rollbackImport } from "../stack-import";
+import { generateCompose, importContainer, listContainerCandidates } from "../container-import";
 
 const optionalDir = (dir : unknown) : string | undefined => {
     if (dir === undefined || dir === null || dir === "") {
@@ -23,6 +24,7 @@ export class ImportSocketHandler extends AgentSocketHandler {
                 callbackResult({
                     ok: true,
                     candidates: await listImportCandidates(server, optionalDir(scanDir)),
+                    containers: await listContainerCandidates(server),
                     imports: await listImports(server),
                 }, callback);
             } catch (e) {
@@ -60,6 +62,49 @@ export class ImportSocketHandler extends AgentSocketHandler {
             }
         });
 
+        // Compose file that would recreate a "docker run" container, for the user to review
+        agentSocket.on("generateContainerCompose", async (ref : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof(ref) !== "string") {
+                    throw new ValidationError("container must be a string");
+                }
+                callbackResult({
+                    ok: true,
+                    ...await generateCompose(server, ref),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        agentSocket.on("importContainer", async (ref : unknown, stackName : unknown, composeYAML : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof(ref) !== "string" || typeof(stackName) !== "string" || typeof(composeYAML) !== "string") {
+                    throw new ValidationError("Invalid arguments");
+                }
+                let result : ImportResult;
+                try {
+                    result = await importContainer(server, socket, ref, stackName.trim(), composeYAML);
+                } catch (e) {
+                    result = {
+                        name: stackName,
+                        ok: false,
+                        msg: e instanceof Error ? e.message : String(e),
+                        notes: [],
+                    };
+                }
+                callbackResult({
+                    ok: true,
+                    results: [ result ],
+                    imports: await listImports(server),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
         agentSocket.on("rollbackImport", async (id : unknown, callback) => {
             try {
                 checkLogin(socket);
@@ -68,7 +113,7 @@ export class ImportSocketHandler extends AgentSocketHandler {
                 }
                 callbackResult({
                     ok: true,
-                    msg: await rollbackImport(server, id),
+                    msg: await rollbackImport(server, socket, id),
                 }, callback);
             } catch (e) {
                 callbackError(e, callback);

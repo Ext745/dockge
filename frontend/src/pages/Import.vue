@@ -64,6 +64,30 @@
                 </button>
             </div>
 
+            <!-- Single "docker run" containers -->
+            <div class="shadow-box big-padding mb-3">
+                <h5 class="mb-1">{{ $t("importContainersTitle") }}</h5>
+                <div class="form-text mb-2">{{ $t("importContainersHint") }}</div>
+                <div v-if="loading" class="subtle py-2">{{ $t("importLoading") }}</div>
+                <div v-else-if="containers.length === 0" class="subtle py-2">{{ $t("importNoContainers") }}</div>
+                <div v-else class="candidate-list">
+                    <div v-for="c in containers" :key="c.id" class="candidate" :class="{ disabled: !c.importable }">
+                        <div class="candidate-body me-auto">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <strong>{{ c.name }}</strong>
+                                <span class="badge" :class="c.state === 'running' ? 'bg-primary' : 'bg-secondary'">{{ c.state }}</span>
+                                <span class="small subtle">{{ c.status }}</span>
+                            </div>
+                            <div class="small file">{{ c.image }}</div>
+                            <div v-if="c.reason" class="small reason">{{ c.reason }}</div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-normal align-self-center text-nowrap" :disabled="!c.importable || importing || reviewLoading" @click="review(c)">
+                            <font-awesome-icon icon="file-import" class="me-1" />{{ $t("importReview") }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Results of the last run -->
             <div v-if="results.length > 0" class="shadow-box big-padding mb-3">
                 <h5 class="mb-2">{{ $t("importResults") }}</h5>
@@ -88,8 +112,10 @@
                     <div class="me-auto">
                         <router-link :to="stackUrl(rec.name)"><strong>{{ rec.name }}</strong></router-link>
                         <div class="small subtle">
-                            {{ $t("importFrom", [ rec.workingDir ]) }} · {{ new Date(rec.importedAt).toLocaleString() }}
-                            <span v-if="rec.redeployed"> · {{ $t("importWasRedeployed") }}</span>
+                            <template v-if="rec.container">{{ $t("importFromContainer", [ rec.container.name, rec.container.renamedTo ]) }}</template>
+                            <template v-else>{{ $t("importFrom", [ rec.workingDir ]) }}</template>
+                            · {{ new Date(rec.importedAt).toLocaleString() }}
+                            <span v-if="rec.redeployed && !rec.container"> · {{ $t("importWasRedeployed") }}</span>
                         </div>
                     </div>
                     <button type="button" class="btn btn-sm btn-normal" :disabled="importing" @click="pendingRollback = rec">
@@ -102,7 +128,22 @@
             </div>
 
             <BModal :model-value="pendingRollback !== null" :title="$t('importRollback')" :cancelTitle="$t('cancel')" :okTitle="$t('importRollback')" okVariant="warning" @ok="rollback" @hidden="pendingRollback = null">
-                <p class="mb-0">{{ pendingRollback && $t(pendingRollback.redeployed ? "importRollbackRedeployedMsg" : "importRollbackMsg", [ pendingRollback.name, pendingRollback.workingDir ]) }}</p>
+                <p class="mb-0">{{ rollbackMessage }}</p>
+            </BModal>
+
+            <BModal v-model="showReview" size="xl" :title="reviewContainer ? $t('importReviewTitle', [ reviewContainer.name ]) : ''" :cancelTitle="$t('cancel')" :okTitle="$t('importContainerConfirm')" :okDisabled="!reviewStackName || importing" okVariant="primary" @ok="importReviewed">
+                <label class="form-label" for="reviewStackName">{{ $t("stackName") }}</label>
+                <input id="reviewStackName" v-model="reviewStackName" class="form-control mb-3" />
+
+                <label class="form-label" for="reviewCompose">compose.yaml</label>
+                <textarea id="reviewCompose" v-model="reviewYAML" class="form-control review-yaml mb-3" rows="16" spellcheck="false"></textarea>
+
+                <ul v-if="reviewNotes.length > 0" class="small mb-3">
+                    <li v-for="(n, i) in reviewNotes" :key="i">{{ n }}</li>
+                </ul>
+                <p class="small safety mb-0">
+                    <font-awesome-icon icon="shield-halved" class="me-1" />{{ reviewContainer && $t("importContainerSafety", [ reviewContainer.name, reviewContainer.name + "-pre-dockge" ]) }}
+                </p>
             </BModal>
         </div>
     </transition>
@@ -128,12 +169,30 @@ export default {
             importing: false,
             results: [],
             pendingRollback: null,
+            containers: [],
+            showReview: false,
+            reviewLoading: false,
+            reviewContainer: null,
+            reviewStackName: "",
+            reviewYAML: "",
+            reviewNotes: [],
         };
     },
     computed: {
         endpoint() {
             return this.$route.params.endpoint || "";
         },
+        rollbackMessage() {
+            const rec = this.pendingRollback;
+            if (!rec) {
+                return "";
+            }
+            if (rec.container) {
+                return this.$t("importRollbackContainerMsg", [ rec.name, rec.container.name ]);
+            }
+            return this.$t(rec.redeployed ? "importRollbackRedeployedMsg" : "importRollbackMsg", [ rec.name, rec.workingDir ]);
+        },
+
         agentLabel() {
             if (!this.endpoint || this.$root.agentCount <= 1) {
                 return "";
@@ -167,6 +226,7 @@ export default {
                     return;
                 }
                 this.candidates = res.candidates;
+                this.containers = res.containers ?? [];
                 this.imports = res.imports;
                 this.scannedDir = dir;
                 this.selected = this.selected.filter((name) => res.candidates.some((c) => c.name === name && c.importable));
@@ -185,6 +245,38 @@ export default {
                 this.results = res.results;
                 this.imports = res.imports;
                 this.selected = [];
+                this.load();
+            });
+        },
+
+        review(container) {
+            this.reviewLoading = true;
+            this.$root.emitAgent(this.endpoint, "generateContainerCompose", container.id, (res) => {
+                this.reviewLoading = false;
+                if (!res.ok) {
+                    this.$root.toastRes(res);
+                    return;
+                }
+                this.reviewContainer = container;
+                this.reviewStackName = res.stackName;
+                this.reviewYAML = res.composeYAML;
+                this.reviewNotes = res.notes;
+                this.showReview = true;
+            });
+        },
+
+        importReviewed() {
+            const container = this.reviewContainer;
+            this.importing = true;
+            this.results = [];
+            this.$root.emitAgent(this.endpoint, "importContainer", container.id, this.reviewStackName.trim(), this.reviewYAML, (res) => {
+                this.importing = false;
+                if (!res.ok) {
+                    this.$root.toastRes(res);
+                    return;
+                }
+                this.results = res.results;
+                this.imports = res.imports;
                 this.load();
             });
         },
@@ -277,6 +369,11 @@ export default {
     .msg {
         white-space: pre-wrap;
     }
+}
+
+.review-yaml {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.85rem;
 }
 
 .record {
