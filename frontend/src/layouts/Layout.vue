@@ -34,14 +34,24 @@
                 </li>
 
                 <li v-if="$root.loggedIn" class="nav-item">
-                    <div class="dropdown dropdown-profile-pic">
-                        <div class="nav-link" data-bs-toggle="dropdown">
+                    <!-- Opened by Vue state, not Bootstrap's dropdown JS (see profileMenuKeydown) -->
+                    <div ref="profileMenu" class="dropdown dropdown-profile-pic">
+                        <div
+                            class="nav-link"
+                            role="button"
+                            tabindex="0"
+                            aria-haspopup="true"
+                            :aria-expanded="profileMenuOpen"
+                            @click="profileMenuOpen = !profileMenuOpen"
+                            @keydown.enter.prevent="profileMenuOpen = !profileMenuOpen"
+                            @keydown.space.prevent="profileMenuOpen = !profileMenuOpen"
+                        >
                             <div class="profile-pic">{{ $root.usernameFirstChar }}</div>
                             <font-awesome-icon icon="angle-down" />
                         </div>
 
                         <!-- Header's Dropdown Menu -->
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu" :class="{ show: profileMenuOpen }" @click="profileMenuOpen = false">
                             <!-- Username -->
                             <li>
                                 <i18n-t v-if="$root.username != null" tag="span" keypath="signedInDisp" class="dropdown-item-text">
@@ -169,6 +179,7 @@ export default {
     data() {
         return {
             menuOpen: false,
+            profileMenuOpen: false,
         };
     },
 
@@ -200,18 +211,53 @@ export default {
     watch: {
         $route() {
             this.menuOpen = false;
+            this.profileMenuOpen = false;
         },
     },
 
     mounted() {
-
+        document.addEventListener("click", this.profileMenuOutsideClick);
+        document.addEventListener("keydown", this.profileMenuKeydown);
     },
 
     beforeUnmount() {
-
+        document.removeEventListener("click", this.profileMenuOutsideClick);
+        document.removeEventListener("keydown", this.profileMenuKeydown);
     },
 
     methods: {
+        profileMenuOutsideClick(event) {
+            if (this.profileMenuOpen && !this.$refs.profileMenu?.contains(event.target)) {
+                this.profileMenuOpen = false;
+            }
+        },
+
+        /**
+         * Escape closes the profile menu, arrow keys move between its items. This menu used Bootstrap's
+         * dropdown JS, which, once loaded, also handles keys for every bootstrap-vue-next BDropdown menu
+         * (stack list filter, stack page menu) and throws there, since they have no data-bs-toggle button.
+         * Only Bootstrap's Modal is loaded now (Confirm.vue, TwoFADialog.vue).
+         * @param {KeyboardEvent} event Key event
+         */
+        profileMenuKeydown(event) {
+            if (!this.profileMenuOpen) {
+                return;
+            }
+            if (event.key === "Escape") {
+                this.profileMenuOpen = false;
+                this.$refs.profileMenu?.querySelector(".nav-link")?.focus();
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                const items = [ ...(this.$refs.profileMenu?.querySelectorAll(".dropdown-item") ?? []) ];
+                if (items.length === 0) {
+                    return;
+                }
+                event.preventDefault();
+                const at = items.indexOf(document.activeElement);
+                const next = at === -1 ? (event.key === "ArrowDown" ? 0 : items.length - 1) : (at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+                items[next].focus();
+            }
+        },
+
         scanFolder() {
             this.$root.emitAgent(ALL_ENDPOINTS, "requestStackList", (res) => {
                 this.$root.toastRes(res);
@@ -414,6 +460,10 @@ main {
     }
 
     .dropdown-menu {
+        // Bootstrap's JS (Popper) used to keep the menu on screen; it opens at the right edge
+        top: 100%;
+        right: 0;
+        left: auto;
         transition: all 0.2s;
         padding-left: 0;
         padding-bottom: 0;

@@ -8,7 +8,8 @@ import { FontAwesomeIcon } from "./icon.js";
 import { i18n } from "./i18n";
 
 // Dependencies
-import "bootstrap";
+// Only Bootstrap's Modal JS is used (imported where needed): its dropdown JS would also grab keys in
+// bootstrap-vue-next's dropdown menus and throw
 import Toast, { POSITION, useToast } from "vue-toastification";
 import "@xterm/xterm/lib/xterm.js";
 

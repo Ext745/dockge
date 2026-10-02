@@ -73,7 +73,7 @@
 </template>
 
 <script lang="ts">
-import { Modal } from "bootstrap";
+import Modal from "bootstrap/js/dist/modal";
 import Confirm from "./Confirm.vue";
 import VueQrcode from "vue-qrcode";
 import { useToast } from "vue-toastification";
