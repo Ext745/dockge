@@ -28,6 +28,7 @@ declare module 'vue' {
     General: typeof import('./src/components/settings/General.vue')['default']
     GlobalEnv: typeof import('./src/components/settings/GlobalEnv.vue')['default']
     HiddenInput: typeof import('./src/components/HiddenInput.vue')['default']
+    ImageUpdates: typeof import('./src/components/settings/ImageUpdates.vue')['default']
     Login: typeof import('./src/components/Login.vue')['default']
     MobileStackList: typeof import('./src/components/MobileStackList.vue')['default']
     NetworkInput: typeof import('./src/components/NetworkInput.vue')['default']

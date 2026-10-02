@@ -16,6 +16,7 @@ import { MainSocketHandler } from "./socket-handlers/main-socket-handler";
 import { SocketHandler } from "./socket-handler";
 import { Settings } from "./settings";
 import checkVersion from "./check-version";
+import { ImageUpdateChecker } from "./image-update-checker";
 import dayjs from "dayjs";
 import { R } from "redbean-node";
 import { genSecret, isDev, LooseObject } from "../common/util-common";
@@ -445,6 +446,7 @@ export class DockgeServer {
             });
 
             checkVersion.startInterval();
+            ImageUpdateChecker.INSTANCE.startInterval(this);
         });
 
         gracefulShutdown(this.httpServer, {

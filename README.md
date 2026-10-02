@@ -125,6 +125,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Import Portainer stacks** | Import Stacks → Portainer stacks: Portainer URL + access token (sent per request, never stored; optional acceptance of Portainer's self-signed certificate). Uses Portainer's API (`/api/stacks`, `/api/stacks/{id}/file`, `/api/endpoints`). Stack variables, which Portainer keeps in its database and only passes at deploy time, are written to `.env`. Relative paths are resolved against Portainer's project folder (`/data/compose/<id>`), which is where Docker actually bind-mounted them from, so no data moves; `env_file`s are read from Portainer's data volume through the helper container. Swarm stacks, stacks on other Portainer environments and stacks Portainer is still deploying are refused with a reason; plain compose import refuses Portainer's projects and points here. Portainer keeps listing an imported stack: don't use its Stop/Delete on it afterwards |
 | **Prune protects stack images** | Agent Maintenance's image Prune and System Prune with "all images", and the REST API's `POST /api/system/prune`, used `docker … prune -a`, which removes every image no container uses — including the images of stacks that only run on demand (e.g. `profiles: ["manual"]` + `docker compose run --rm`), which can be many GB to re-download. Docker's prune can't exclude by name, so Dockge now runs Docker's prune without `-a` (plus `docker builder prune -a` for the build cache), then removes unused images itself, skipping any whose repository appears in a stack's compose file or override (with `.env`/`global.env` applied; all tags of that repository, since stacks often pick the tag through a variable). The summary lists what was kept. Images used by any container, running or stopped, are never removed. Plain `docker` commands are unaffected |
 | **Prune protects stack volumes** | Agent Maintenance's volume Prune with "all" used `docker volume prune -a`, which removes every unused named volume - including the data volumes of a stack that's merely "down". Dockge now runs Docker's plain prune (anonymous volumes only) and then removes unused volumes itself, keeping any a stack declares under the name Docker uses for it (`<project>_<key>`, with the project from a top-level `name:` or the folder; a custom `name:`; an `external` volume), with `.env`/`global.env` applied. The output lists what was kept. Plain Prune and System Prune's volume option only ever remove anonymous volumes on Docker 23+ and are unchanged |
+| **Image update available** | Each node compares the image every service of its stacks uses with the image's registry (a HEAD request for the tag's manifest digest, checked against the RepoDigests Docker recorded on pull; no skopeo, and Docker Hub doesn't count HEAD requests against its pull limit). Stacks with a newer image get a cloud icon in the stack list (an "Updates" chip on phones and an "Update available" option in the filter); on the stack page the affected services are badged and Update is highlighted. Checks run a minute after startup and then every 6 hours (Settings → Image updates: on/off, 1 hour to 1 week, Check now, applied to every online node), and again for a stack after Save, Deploy or Update. Skipped, never flagged: `build:` services, images pinned by digest, not pulled yet, or not on a registry (private registries need `docker login` inside the Dockge container). The REST API's `GET /api/stacks/:name/status` returns `imageUpdatesAvailable`. |
 
 <table>
   <tr>
@@ -138,7 +139,7 @@ Along the way, several pre-existing bugs in darthrater78's codebase were found a
 
 What changed in each release of this fork: [Version History](#version-history).
 
-**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 already has a more capable version-sync/drift-check system) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
+**Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 removed theirs in v1.8.0; this fork has its own registry-based check since **v2.11.0**, see above) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
 This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
 
@@ -181,6 +182,8 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🛡️ (Ext745/dockge 2.10.0 🆕) "Prune all images" keeps images your stacks use — an on-demand stack (like a build toolchain run with `docker compose run`) has no container between runs, so Docker treats its image as unused; Dockge's prune-all options now keep every tag of any image repository a stack's compose file names, and say which ones they kept
 - 🧹 (Ext745/dockge 2.10.1 🆕) Clean prune output — "all images" prunes no longer show Docker's legacy-builder deprecation notice (Dockge's image has no buildx); the build cache step prints one line with what it reclaimed
 - 🏷️ (Ext745/dockge 2.10.1 🆕) Image Delete removes just the tag you picked — two tags of the same image no longer tick together, and deleting an unused tag no longer fails with "image is being used by running container" when another tag of it is in use
+- ☁️ (Ext745/dockge 2.11.0 🆕) Update available — stacks whose images have a newer version on their registry get a cloud icon in the stack list, a filter option and an "Updates" chip on phones; the stack page badges the services and highlights Update. Checked every 6 hours on every node (Settings → Image updates)
+- 📜 (Ext745/dockge 2.10.3 🆕) Update shows its output — the stack's Update button opens the terminal and streams the pull/recreate output, like Start/Stop/Deploy
 - 💾 (Ext745/dockge 2.10.2 🆕) "Prune all" volumes keeps your stacks' data — a stack that's "down" has no containers, so Docker counts its volumes (e.g. a database) as unused; Agent Maintenance's volume Prune with "all" now keeps every volume a stack's compose file declares
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
@@ -237,7 +240,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.10.3` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.11.0` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
 ```yaml
       - PUID=1000
@@ -251,7 +254,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.10.3
+    image: ghcr.io/ext745/dockge:2.11.0
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -281,14 +284,14 @@ services:
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.10.3`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.11.0`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.10.3; F=/opt/docker/dockge/compose.yaml
+V=2.11.0; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -461,6 +464,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.11.0**](https://github.com/Ext745/dockge/releases/tag/v2.11.0) | 2026-10-02 | **Update available** detection: stacks with a newer image on their registry are marked in the stack list and on the stack page; checked every 6 hours on every node, with on/off, interval and Check now in Settings → Image updates |
 | [**v2.10.3**](https://github.com/Ext745/dockge/releases/tag/v2.10.3) | 2026-10-02 | **Fix:** stack Update opens the terminal again and shows the live pull/recreate output |
 | [**v2.10.2**](https://github.com/Ext745/dockge/releases/tag/v2.10.2) | 2026-09-29 | **Fix:** volume "Prune all" no longer deletes the data volumes of stacks that are down; keeps every volume a stack declares |
 | [**v2.10.1**](https://github.com/Ext745/dockge/releases/tag/v2.10.1) | 2026-09-29 | **Fix:** "all images" prunes no longer print Docker's legacy-builder deprecation notice; **fix:** image Delete removes only the selected tag (no more "used by running container" error when two tags share an image) |

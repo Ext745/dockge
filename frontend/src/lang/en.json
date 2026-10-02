@@ -295,5 +295,22 @@
     "importPortainerWarning": "Portainer keeps listing an imported stack. Don't use Portainer's Stop or Delete on it afterwards: those act on the running containers, which Dockge now manages.",
     "importFromPortainer": "from Portainer ({0})",
     "importRollbackPortainerMsg": "Remove {0} from Dockge? Portainer still manages it exactly as before.",
-    "importRollbackPortainerRedeployedMsg": "Remove {0} from Dockge? Its containers keep running; to hand it back to Portainer, use \"Update the stack\" on it in Portainer."
+    "importRollbackPortainerRedeployedMsg": "Remove {0} from Dockge? Its containers keep running; to hand it back to Portainer, use \"Update the stack\" on it in Portainer.",
+    "imageUpdates": "Image updates",
+    "imageUpdatesHelp": "Compares the image each stack uses with its registry and marks stacks whose tag now points at a newer image. Each node checks its own stacks; these settings are applied to every online node. Images built locally, pinned by digest or not pulled yet are skipped. Private registries need \"docker login\" run inside the Dockge container.",
+    "imageUpdateCheck": "Check stacks' images for updates",
+    "imageUpdateInterval": "Check",
+    "everyHours": "every hour | every {n} hours",
+    "lastChecked": "Last checked",
+    "result": "Result",
+    "never": "never",
+    "checkNow": "Check now",
+    "checking": "Checking…",
+    "imageCheckResult": "{images} image(s), {updates} update(s), {skipped} skipped",
+    "imageUpdatesOff": "Checks turned off",
+    "imageUpdatesUnsupported": "No answer (older Dockge version?)",
+    "imageUpdateAvailable": "Update available",
+    "imageUpdateAvailableHelp": "A newer image is available on the registry. Update pulls it and recreates the container.",
+    "updateShort": "Update",
+    "updatesChip": "Updates"
 }

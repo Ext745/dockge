@@ -83,6 +83,7 @@
                             </span>
                             <span class="card-meta">
                                 <span class="status-label">{{ $t(statusNameShort(stack.status)) }}</span>
+                                <span v-if="stack.imageUpdatesAvailable" class="meta-item update"><font-awesome-icon icon="cloud-arrow-down" class="me-1" />{{ $t("updateShort") }}</span>
                                 <span v-if="!stack.isManagedByDockge" class="meta-item">{{ $t("notManaged") }}</span>
                                 <template v-for="port in portInfo(stack).visible" :key="port">
                                     <span class="port" :class="{ conflict: portInfo(stack).conflicts.has(port) }">{{ port }}</span>
@@ -220,10 +221,12 @@ export default {
                 { key: "exited", label: this.$t("exited") },
                 { key: "inactive", label: this.$t("inactive") },
                 { key: "conflicts", label: this.$t("portConflicts") },
+                { key: "updates", label: this.$t("updatesChip") },
             ].map(chip => ({ ...chip, count: count(chip.key) }));
 
-            // Only offer the conflicts chip when there is something to show (or it is the active filter)
-            return chips.filter(chip => chip.key !== "conflicts" || chip.count > 0 || this.filter === "conflicts");
+            // Only offer the conflicts/updates chips when there is something to show (or it is the active filter)
+            const optional = [ "conflicts", "updates" ];
+            return chips.filter(chip => !optional.includes(chip.key) || chip.count > 0 || this.filter === chip.key);
         },
     },
 
@@ -259,6 +262,9 @@ export default {
         matchesFilter(stack, key) {
             if (key === "conflicts") {
                 return this.portInfo(stack).hasConflict;
+            }
+            if (key === "updates") {
+                return !!stack.imageUpdatesAvailable;
             }
             return (FILTERS[key] ?? FILTERS.all)(stack);
         },
@@ -562,6 +568,12 @@ export default {
 
     .meta-item {
         opacity: 0.8;
+    }
+
+    .meta-item.update {
+        color: $primary;
+        opacity: 1;
+        font-weight: 600;
     }
 
     .port {

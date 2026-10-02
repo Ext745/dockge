@@ -26,6 +26,7 @@ import childProcessAsync from "promisify-child-process";
 import { Settings } from "./settings";
 import { ServiceData } from "../common/types";
 import { LABEL_STATUS_IGNORE } from "../common/compose-labels";
+import { ImageUpdateChecker } from "./image-update-checker";
 
 export class Stack {
 
@@ -115,6 +116,7 @@ export class Stack {
             composeOverrideFileName: this._composeOverrideFileName,
             endpoint,
             ports: this.extractPorts(),
+            imageUpdatesAvailable: ImageUpdateChecker.INSTANCE.stackHasUpdate(this.name),
         };
     }
 
@@ -432,6 +434,9 @@ export class Stack {
                 fs.chownSync(envPath, uid, gid);
             }
         }
+
+        // The images (or their tags) may have changed
+        ImageUpdateChecker.INSTANCE.recheckInBackground(this.server, this);
     }
 
     async deploy(socket : DockgeSocket, forceRecreate = false) : Promise<number> {
@@ -441,6 +446,8 @@ export class Stack {
         if (exitCode !== 0) {
             throw new Error("Failed to deploy, please check the terminal output for more information.");
         }
+        // Deploy pulls images that weren't present yet
+        ImageUpdateChecker.INSTANCE.recheckInBackground(this.server, this);
         return exitCode;
     }
 
@@ -463,6 +470,7 @@ export class Stack {
             recursive: true,
             force: true
         });
+        ImageUpdateChecker.INSTANCE.forgetStack(this.name);
 
         return exitCode;
     }
@@ -702,6 +710,8 @@ export class Stack {
         if (exitCode !== 0) {
             throw new Error("Failed to pull, please check the terminal output for more information.");
         }
+        // The pulled images are now the registry's: clear the stack's "update available"
+        ImageUpdateChecker.INSTANCE.recheckInBackground(this.server, this);
 
         // If the stack is not running, we don't need to restart it
         await this.updateStatus();

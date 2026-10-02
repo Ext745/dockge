@@ -10,6 +10,8 @@ import path from "path";
 import AdmZip from "adm-zip";
 import { findPortConflicts } from "../port-conflicts";
 import { validateCompose } from "../compose-validate";
+import { ImageUpdateChecker } from "../image-update-checker";
+import { Settings } from "../settings";
 
 export class DockerSocketHandler extends AgentSocketHandler {
     create(socket : DockgeSocket, server : DockgeServer, agentSocket : AgentSocket) {
@@ -394,6 +396,67 @@ export class DockerSocketHandler extends AgentSocketHandler {
                 callbackResult({
                     ok: true,
                     serviceStatusList,
+                    imageUpdates: ImageUpdateChecker.INSTANCE.serviceUpdates(stackName),
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // When this node last checked its stacks' images for updates, and whether it checks at all
+        agentSocket.on("imageUpdateStatus", async (callback) => {
+            try {
+                checkLogin(socket);
+                callbackResult({
+                    ok: true,
+                    enabled: await ImageUpdateChecker.isEnabled(),
+                    intervalHours: await ImageUpdateChecker.intervalHours(),
+                    lastCheckedAt: ImageUpdateChecker.INSTANCE.lastCheckedAt,
+                    lastSummary: ImageUpdateChecker.INSTANCE.lastSummary,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Turn this node's image update checks on/off and set how often they run
+        agentSocket.on("setImageUpdateSettings", async (enabled : unknown, intervalHours : unknown, callback) => {
+            try {
+                checkLogin(socket);
+                if (typeof enabled !== "boolean") {
+                    throw new ValidationError("enabled must be a boolean");
+                }
+                if (typeof intervalHours !== "number" || !Number.isInteger(intervalHours) || intervalHours < 1 || intervalHours > 168) {
+                    throw new ValidationError("Check interval must be 1 to 168 hours");
+                }
+                await Settings.set("imageUpdateCheck", enabled, "imageUpdates");
+                await Settings.set("imageUpdateCheckInterval", intervalHours, "imageUpdates");
+                if (!enabled) {
+                    ImageUpdateChecker.INSTANCE.clear();
+                    await server.sendStackList(true);
+                }
+                callbackResult({
+                    ok: true,
+                    msg: "Saved",
+                    msgi18n: true,
+                }, callback);
+            } catch (e) {
+                callbackError(e, callback);
+            }
+        });
+
+        // Check every stack's images against their registries now
+        agentSocket.on("checkImageUpdates", async (callback) => {
+            try {
+                checkLogin(socket);
+                if (!await ImageUpdateChecker.isEnabled()) {
+                    throw new ValidationError("Image update checks are turned off on this node");
+                }
+                const summary = await ImageUpdateChecker.INSTANCE.checkAll(server);
+                await server.sendStackList(true);
+                callbackResult({
+                    ok: true,
+                    ...summary,
                 }, callback);
             } catch (e) {
                 callbackError(e, callback);

@@ -86,6 +86,9 @@ export default {
                 globalEnv: {
                     title: this.$t("GlobalEnv"),
                 },
+                imageUpdates: {
+                    title: this.$t("imageUpdates"),
+                },
                 api: {
                     title: this.$t("API"),
                 },

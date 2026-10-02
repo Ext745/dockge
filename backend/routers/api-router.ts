@@ -13,6 +13,7 @@ import { scanStack, scanAllStacks, syncComposeFile } from "../compose-version-sy
 import { Settings } from "../settings";
 import { encryptCredential } from "../services/agent-crypto";
 import { describeCleanup, pruneAllBuildCache, removeUnusedImages } from "../image-protection";
+import { ImageUpdateChecker } from "../image-update-checker";
 
 const STATUS_NAMES: Record<number, string> = {
     [UNKNOWN]: "unknown",
@@ -381,6 +382,7 @@ export class ApiRouter extends Router {
                                 started: data.started,
                                 isManagedByDockge: data.isManagedByDockge,
                                 recreateNecessary: data.recreateNecessary,
+                                imageUpdatesAvailable: data.imageUpdatesAvailable ?? false,
                                 services: data.services,
                                 endpoint,
                             },
@@ -402,6 +404,7 @@ export class ApiRouter extends Router {
                         statusCode: stack.status,
                         started: stack.isStarted,
                         isManagedByDockge: stack.isManagedByDockge,
+                        imageUpdatesAvailable: ImageUpdateChecker.INSTANCE.stackHasUpdate(stack.name),
                         services: Object.fromEntries(stack.services),
                         endpoint: "",
                     },

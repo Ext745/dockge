@@ -195,7 +195,13 @@ export default {
                     statusMatch = this.stackFilter.status.selected.has(StackStatusInfo.get(stack.status).label);
                 }
 
-                return searchTextMatch && agentMatch && statusMatch;
+                // filter by attribute
+                let attributeMatch = true;
+                if (this.stackFilter.attributes.isFilterSelected()) {
+                    attributeMatch = !this.stackFilter.attributes.selected.has("imageUpdatesAvailable") || !!stack.imageUpdatesAvailable;
+                }
+
+                return searchTextMatch && agentMatch && statusMatch && attributeMatch;
             });
 
             result.sort(compareStacks);

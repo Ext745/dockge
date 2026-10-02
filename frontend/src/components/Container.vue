@@ -5,6 +5,7 @@
                 <h4>{{ name }}</h4>
                 <div class="image mb-2">
                     <span class="me-1">{{ imageName }}:</span><span class="tag">{{ imageTag }}</span>
+                    <span v-if="updateAvailable && !isEditMode" class="badge bg-primary ms-2" :title="$t('imageUpdateAvailableHelp')"><font-awesome-icon icon="cloud-arrow-down" class="me-1" />{{ $t("imageUpdateAvailable") }}</span>
                 </div>
                 <div v-if="!isEditMode">
                     <span class="badge me-1" :class="bgStyle">{{ status }}</span>
@@ -237,6 +238,11 @@ export default defineComponent({
         dockerStats: {
             type: Object,
             default: null
+        },
+        /** The registry has a newer image for this service's tag */
+        updateAvailable: {
+            type: Boolean,
+            default: false,
         }
     },
     emits: [

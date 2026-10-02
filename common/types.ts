@@ -21,6 +21,8 @@ export type SimpleStackData = {
     status: number,
     started: boolean,
     recreateNecessary: boolean,
+    // A service's image has a newer version on its registry
+    imageUpdatesAvailable?: boolean,
     tags: string[],
     isManagedByDockge: boolean,
     composeFileName: string,

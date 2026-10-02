@@ -81,7 +81,7 @@
                         {{ $t("restartStack") }}
                     </button>
 
-                    <button v-if="!isEditMode" class="btn btn-normal" :disabled="processing" @click="updateStack">
+                    <button v-if="!isEditMode" class="btn" :class="hasImageUpdates ? 'btn-primary' : 'btn-normal'" :disabled="processing" :title="hasImageUpdates ? $t('imageUpdateAvailableHelp') : ''" @click="updateStack">
                         <font-awesome-icon icon="cloud-arrow-down" class="me-1" />
                         {{ $t("updateStack") }}
                     </button>
@@ -231,6 +231,7 @@
                                 :first="name === Object.keys(jsonConfig.services)[0]"
                                 :serviceStatus="serviceStatusList[name]"
                                 :dockerStats="dockerStats"
+                                :update-available="!!imageUpdates[name]"
                                 @start-service="startService"
                                 @stop-service="stopService"
                                 @restart-service="restartService"
@@ -457,7 +458,7 @@
                     <button v-if="active" type="button" class="m-action" :disabled="processing" @click="stopStack">
                         <font-awesome-icon icon="stop" /><span>{{ $t("stopStack") }}</span>
                     </button>
-                    <button type="button" class="m-action" :disabled="processing" @click="updateStack">
+                    <button type="button" class="m-action" :class="{ 'has-update': hasImageUpdates }" :disabled="processing" @click="updateStack">
                         <font-awesome-icon icon="cloud-arrow-down" /><span>{{ $t("updateStack") }}</span>
                     </button>
                     <button type="button" class="m-action" :disabled="processing" @click="enableEditMode">
@@ -643,6 +644,8 @@ export default {
                 composeOverrideYAML: "",
             },
             serviceStatusList: {},
+            // Services whose image has a newer version on its registry
+            imageUpdates: {},
             dockerStats: {},
             isEditMode: false,
             submitted: false,
@@ -687,6 +690,10 @@ export default {
 
         endpointDisplay() {
             return this.$root.endpointDisplayFunction(this.endpoint);
+        },
+
+        hasImageUpdates() {
+            return Object.keys(this.imageUpdates).length > 0;
         },
 
         /**
@@ -984,6 +991,7 @@ export default {
             this.$root.emitAgent(this.endpoint, "serviceStatusList", this.stack.name, (res) => {
                 if (res.ok) {
                     this.serviceStatusList = res.serviceStatusList;
+                    this.imageUpdates = res.imageUpdates ?? {};
                 }
                 if (!this.stopServiceStatusTimeout) {
                     this.startServiceStatusTimeout();
@@ -1750,6 +1758,12 @@ $m-actionbar: 64px;
         &.primary {
             background: $primary-gradient;
             color: $dark-font-color2;
+            font-weight: 600;
+        }
+
+        // A newer image is on the registry
+        &.has-update {
+            color: $primary;
             font-weight: 600;
         }
 

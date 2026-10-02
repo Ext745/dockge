@@ -2,7 +2,7 @@
     <router-link :to="url" :class="{ 'dim' : !stack.isManagedByDockge }" class="item">
         <Uptime :stack="stack" :fixed-width="true" class="me-2" />
         <div class="title-and-ports">
-            <span class="title" :class="{ 'port-conflict': hasPortConflict }">{{ stackName }}</span>
+            <span class="title" :class="{ 'port-conflict': hasPortConflict }">{{ stackName }}<font-awesome-icon v-if="stack.imageUpdatesAvailable" icon="cloud-arrow-down" class="update-icon ms-2" :title="$t('imageUpdateAvailable')" :aria-label="$t('imageUpdateAvailable')" /></span>
             <span v-if="orderedPorts.length > 0" ref="ports" class="ports">
                 <span ref="portLabel" class="port-label" :class="{ 'port-conflict': hasPortConflict }">Configured Ports:</span>
                 <span v-for="port in displayPorts" :key="port" ref="portBadges" class="badge port-badge" :class="{ 'port-conflict-badge': conflictingPorts.has(port) }">{{ port }}</span>
@@ -249,6 +249,11 @@ export default {
             margin-top: -4px;
             font-size: 0.95rem;
             font-weight: 600;
+        }
+
+        .update-icon {
+            color: $primary;
+            font-size: 0.85em;
         }
 
         .ports {

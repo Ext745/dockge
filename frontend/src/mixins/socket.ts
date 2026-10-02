@@ -129,10 +129,12 @@ export default defineComponent({
         completeStackList() {
             const agents = new Set<string>();
             const status = new Set<string>();
+            let updates = false;
 
-            for (const stackData of Object.values(this.completeStackList) as { endpoint: string, status: number }[]) {
+            for (const stackData of Object.values(this.completeStackList) as { endpoint: string, status: number, imageUpdatesAvailable?: boolean }[]) {
                 agents.add(stackData.endpoint);
                 status.add(StackStatusInfo.get(stackData.status).label);
+                updates ||= !!stackData.imageUpdatesAvailable;
             }
 
             this.stackFilter.agents.options = Object.fromEntries(
@@ -144,6 +146,11 @@ export default defineComponent({
             this.stackFilter.status.options = Object.fromEntries(
                 StackStatusInfo.ALL.filter(i => status.has(i.label)).map(i => [ i.label, i.label ])
             );
+
+            // Offered while any stack has an update, or while it is ticked (so it can be unticked)
+            this.stackFilter.attributes.options = updates || this.stackFilter.attributes.selected.has("imageUpdatesAvailable")
+                ? { imageUpdateAvailable: "imageUpdatesAvailable" }
+                : {};
         },
     },
     created() {
