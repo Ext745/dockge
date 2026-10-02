@@ -1029,7 +1029,7 @@ export default {
         },
 
         // Show the progress terminal immediately and bind it for a compose action that
-        // streams live docker/docker-compose output (deploy/start/stop/down/restart).
+        // streams live docker/docker-compose output (deploy/start/stop/down/restart/update).
         startComposeAction() {
             this.processing = true;
             this.submitted = true;
@@ -1289,11 +1289,10 @@ export default {
         },
 
         updateStack() {
-            this.processing = true;
-            this.showLogs();
+            this.startComposeAction();
 
             this.$root.emitAgent(this.endpoint, "updateStack", this.stack.name, (res) => {
-                this.processing = false;
+                this.stopComposeAction();
                 this.$root.toastRes(res);
             });
         },
