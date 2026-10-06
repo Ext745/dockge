@@ -242,7 +242,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.11.1` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.11.2` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
 
 ```yaml
       - PUID=1000
@@ -256,7 +256,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.11.1
+    image: ghcr.io/ext745/dockge:2.11.2
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -286,14 +286,14 @@ services:
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.11.1`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.11.2`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.11.1; F=/opt/docker/dockge/compose.yaml
+V=2.11.2; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -466,6 +466,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.11.2**](https://github.com/Ext745/dockge/releases/tag/v2.11.2) | 2026-10-05 | **Dependencies:** merges darthrater78's npm audit fixes (brace-expansion, engine.io, fast-uri, ip-address, joi) |
 | [**v2.11.1**](https://github.com/Ext745/dockge/releases/tag/v2.11.1) | 2026-10-05 | **Fix:** after System Prune, Agent Maintenance's lists didn't refresh, so removed images stayed listed (and Delete on them said "No such image"); the prune summary now names the removed images |
 | [**v2.11.0**](https://github.com/Ext745/dockge/releases/tag/v2.11.0) | 2026-10-02 | **Update available** detection: stacks with a newer image on their registry are marked in the stack list and on the stack page; checked every 6 hours on every node, with on/off, interval and Check now in Settings → Image updates; **fix:** Escape/arrow keys in the filter and stack ⋮ menus threw an error instead of closing/moving |
 | [**v2.10.3**](https://github.com/Ext745/dockge/releases/tag/v2.10.3) | 2026-10-02 | **Fix:** stack Update opens the terminal again and shows the live pull/recreate output |
