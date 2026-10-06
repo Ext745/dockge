@@ -79,8 +79,6 @@ export default defineComponent({
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const root = proxy?.$root as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const refs = proxy?.$refs as any;
 
         // State
         const processing = ref(false);
@@ -133,6 +131,10 @@ export default defineComponent({
         }
 
         function reloadArtefactsData() {
+            // Read $refs now, not once in setup(): Vue replaces the (initially empty, shared) refs object
+            // when the first template ref is set, so a copy taken in setup() stays empty forever
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const refs = proxy?.$refs as any ?? {};
             for (const artefact of Object.values(DockerArtefactInfos)) {
                 const ref = refs[artefact.name];
 
