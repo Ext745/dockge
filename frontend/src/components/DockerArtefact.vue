@@ -208,6 +208,10 @@ onMounted(() => {
     loadData();
 });
 
+// AgentMaintenance.vue reloads every tab through its template ref after System Prune; a <script setup>
+// component exposes nothing by default, so without this that reload silently did nothing
+defineExpose({ loadData });
+
 </script>
 
 <style lang="scss" scoped>

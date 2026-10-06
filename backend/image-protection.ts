@@ -235,7 +235,7 @@ export async function pruneAllBuildCache() : Promise<string> {
  * @returns Text
  */
 export function describeCleanup(r : UnusedImageCleanup) : string {
-    const lines = [ `Removed ${r.removed.length} unused image(s).` ];
+    const lines = [ `Removed ${r.removed.length} unused image(s)${r.removed.length ? ": " + r.removed.join(", ") : "."}` ];
     if (r.kept.length) {
         lines.push(`Kept ${r.kept.length} unused image(s) because a Dockge stack uses them: ${r.kept.join(", ")}`);
     }
