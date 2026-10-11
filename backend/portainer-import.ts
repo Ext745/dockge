@@ -307,7 +307,7 @@ export async function importPortainerStack(server : DockgeServer, socket : Dockg
             await fsAsync.rm(backupDir, { recursive: true,
                 force: true });
             log.warn("portainer-import", `Redeploy of ${name} failed: ${e}`);
-            throw new Error(`Imported, but redeploying from Dockge failed, so the import was undone: ${e instanceof Error ? e.message : e}`);
+            throw new Error(`Imported, but redeploying from Dockge failed, so the import was undone: ${e instanceof Error ? e.message : e}`, { cause: e });
         }
     }
 

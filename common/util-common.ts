@@ -10,7 +10,7 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 // @ts-ignore
-import { replaceVariablesSync } from "@inventage/envsubst";
+import { interpolate } from "./compose-ports";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -480,8 +480,14 @@ export function parseDockerPort(input : string, hostname : string) {
     };
 }
 
+/**
+ * Substitute variables the way docker compose does ($VAR, ${VAR:-default}, $$, ...)
+ * @param string Value from a compose file
+ * @param variables Variables
+ * @returns The substituted value
+ */
 export function envsubst(string : string, variables : LooseObject) : string {
-    return replaceVariablesSync(string, variables)[0];
+    return interpolate(string, variables);
 }
 
 /**

@@ -82,6 +82,16 @@ function validateStackName(req: Request, res: Response, next: NextFunction): voi
     next();
 }
 
+/**
+ * A query parameter as a plain string. `?a=1&a=2` arrives as an array and `?a[x]=1` as an object;
+ * both are treated as absent rather than passed on as something that only looks like a string
+ * @param value req.query value
+ * @returns The string, or ""
+ */
+function queryString(value: unknown): string {
+    return typeof value === "string" ? value : "";
+}
+
 function validateEndpoint(endpoint: string | undefined): boolean {
     if (!endpoint || endpoint === "") {
         return true;
@@ -145,17 +155,14 @@ function agentSupports(server: DockgeServer, endpoint: string): boolean {
     return server.serverAgentManager.supportsFeature(endpoint, "1.6.0");
 }
 
-function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, ...args: unknown[]): Promise<Record<string, unknown>>;
-function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, timeoutMs: number, ...args: unknown[]): Promise<Record<string, unknown>>;
+/** How long to wait for a remote agent's answer */
+const AGENT_TIMEOUT_MS = 30000;
+
 function emitToAgent(server: DockgeServer, endpoint: string, eventName: string, ...args: unknown[]): Promise<Record<string, unknown>> {
-    let timeoutMs = 30000;
-    if (typeof args[0] === "number") {
-        timeoutMs = args.shift() as number;
-    }
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
             reject(new Error(`Timeout waiting for response from agent ${endpoint}`));
-        }, timeoutMs);
+        }, AGENT_TIMEOUT_MS);
 
         server.serverAgentManager.emitToEndpoint(endpoint, eventName, ...args, (result: Record<string, unknown>) => {
             clearTimeout(timeout);
@@ -304,7 +311,7 @@ export class ApiRouter extends Router {
                 const stackList = await Stack.getStackList(server, true);
                 // Each updateData() spawns `docker compose ps`; run a few at a time rather than one by one
                 await forEachWithConcurrency([ ...stackList.values() ], STACK_STATUS_CONCURRENCY, (stack) => stack.updateData());
-                for (const [name, stack] of stackList) {
+                for (const [ name, stack ] of stackList) {
                     stacks.push({
                         name,
                         status: STATUS_NAMES[stack.status] || "unknown",
@@ -362,7 +369,7 @@ export class ApiRouter extends Router {
         // GET /api/stacks/:name/status
         router.get("/api/stacks/:name/status", validateStackName, async (req: Request, res: Response) => {
             try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
+                const endpoint = await resolveEndpoint(queryString(req.query.endpoint));
 
                 if (!validateEndpoint(endpoint)) {
                     res.status(400).json({ ok: false, error: "Invalid endpoint format" });
@@ -424,7 +431,7 @@ export class ApiRouter extends Router {
             router.post(`/api/stacks/:name/${action.path}`, validateStackName, async (req: Request, res: Response) => {
                 const name = req.params.name;
                 try {
-                    const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
+                    const endpoint = await resolveEndpoint(queryString(req.query.endpoint));
 
                     if (!validateEndpoint(endpoint)) {
                         res.status(400).json({ ok: false, error: "Invalid endpoint format" });
@@ -448,14 +455,18 @@ export class ApiRouter extends Router {
                         return;
                     }
 
+                    const warnings : string[] = [];
                     for (const args of action.composeCommands) {
+                        if (args[0] === "up") {
+                            warnings.push(...stack.prepareBindMounts());
+                        }
                         await childProcessAsync.spawn("docker", stack.getComposeOptions(args[0], ...args.slice(1)), {
                             cwd: stack.path,
                             encoding: "utf-8",
                         });
                     }
 
-                    res.json({ ok: true, message: `Stack '${name}' ${action.pastTense}`, endpoint: "" });
+                    res.json({ ok: true, message: `Stack '${name}' ${action.pastTense}`, endpoint: "", ...(warnings.length ? { warnings } : {}) });
                 } catch (e) {
                     if (e instanceof ValidationError) {
                         res.status(404).json({ ok: false, error: "Stack not found" });
@@ -470,7 +481,7 @@ export class ApiRouter extends Router {
         // POST /api/system/prune
         router.post("/api/system/prune", async (req: Request, res: Response) => {
             try {
-                const endpoint = await resolveEndpoint((req.query.endpoint as string) || "");
+                const endpoint = await resolveEndpoint(queryString(req.query.endpoint));
 
                 if (!validateEndpoint(endpoint)) {
                     res.status(400).json({ ok: false, error: "Invalid endpoint format" });

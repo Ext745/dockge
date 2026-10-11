@@ -44,6 +44,7 @@ import { Terminal } from "./terminal";
 import { ApiRouter } from "./routers/api-router";
 import { ServerAgentManager } from "./server-agent-manager";
 import { setAgentEncryptionKey } from "./services/agent-crypto";
+import { checkDataDir, checkStacksDir, parseBindRoots, parseStackOwner, processUser } from "./stack-permissions";
 
 export class DockgeServer {
     app : Express;
@@ -92,6 +93,12 @@ export class DockgeServer {
     serverAgentManager! : ServerAgentManager;
 
     stacksDir : string = "";
+
+    /** Folders under which absolute bind-mount sources may be created: DOCKGE_BIND_ROOTS plus the stacks folder */
+    bindRoots : string[] = [];
+
+    /** Permission problems found at startup, shown to every user after login */
+    startupWarnings : string[] = [];
 
     /**
      *
@@ -169,6 +176,7 @@ export class DockgeServer {
         this.config.stacksDir = args.stacksDir || process.env.DOCKGE_STACKS_DIR || defaultStacksDir;
         this.config.enableConsole = args.enableConsole || process.env.DOCKGE_ENABLE_CONSOLE === "true" || false;
         this.stacksDir = this.config.stacksDir;
+        this.bindRoots = parseBindRoots([ process.env.DOCKGE_BIND_ROOTS, path.resolve(this.stacksDir) ].join(","));
 
         const safeConfig = {
             ...this.config,
@@ -369,6 +377,10 @@ export class DockgeServer {
         socket.join(user.id.toString());
 
         this.sendInfo(socket);
+
+        for (const msg of this.startupWarnings) {
+            socket.emitAgent("permissionWarning", { msg });
+        }
 
         try {
             this.sendStackList();
@@ -580,7 +592,7 @@ export class DockgeServer {
         try {
             dayjs.utc("2013-11-18 11:55").tz(timezone).format();
         } catch (e) {
-            throw new Error("Invalid timezone:" + timezone);
+            throw new Error("Invalid timezone:" + timezone, { cause: e });
         }
     }
 
@@ -588,19 +600,42 @@ export class DockgeServer {
      * Initialize the data directory
      */
     initDataDir() {
-        if (! fs.existsSync(this.config.dataDir)) {
-            fs.mkdirSync(this.config.dataDir, { recursive: true });
+        // The data folder is required: without it the database can't open, so stop with a readable message
+        const dataError = checkDataDir(this.config.dataDir);
+        if (dataError) {
+            log.error("server", dataError);
+            process.exit(1);
         }
 
-        // Check if a directory
-        if (!fs.lstatSync(this.config.dataDir).isDirectory()) {
-            throw new Error(`Fatal error: ${this.config.dataDir} is not a directory`);
+        // Everything else worked (or failed later) in earlier versions, so it warns instead of stopping
+        const warn = (msg : string) => {
+            log.warn("server", msg);
+            this.startupWarnings.push(msg);
+        };
+
+        const stacksError = checkStacksDir(this.stacksDir);
+        if (stacksError) {
+            warn(stacksError);
         }
 
-        // Create data/stacks directory
-        if (!fs.existsSync(this.stacksDir)) {
-            fs.mkdirSync(this.stacksDir, { recursive: true });
+        let owner;
+        try {
+            owner = parseStackOwner();
+        } catch (e) {
+            warn(`${e instanceof Error ? e.message : e}. Ignoring PUID/PGID: file ownership is left alone.`);
         }
+
+        const uid = process.getuid?.();
+        const gid = process.getgid?.();
+        if (owner && uid !== undefined && uid !== 0 && (owner.uid !== uid || owner.gid !== gid)) {
+            warn(`PUID/PGID=${owner.uid}:${owner.gid} differs from the user Dockge runs as (${processUser()}). `
+                + "Changing file ownership needs root, so new files are owned by this user instead. Remove `user:` from Dockge's compose file "
+                + "(Dockge then starts as root and switches to PUID/PGID itself), or set PUID/PGID to this user.");
+        }
+
+        log.info("server", `Running as ${uid === 0 ? "root" : processUser()}`
+            + (uid === 0 ? " (set PUID/PGID to run as a regular user)" : ""));
+        log.info("server", `Bind-mount folders are created under: ${this.bindRoots.join(", ")} and inside each stack`);
 
         log.info("server", `Data Dir: ${this.config.dataDir}`);
     }

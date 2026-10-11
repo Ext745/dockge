@@ -103,7 +103,7 @@ export class Database {
             this.writeDBConfig(dbConfig);
         }
 
-        let config = {};
+        let config : object;
 
         log.info("db", `Database Type: ${dbConfig.type}`);
 

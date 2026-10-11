@@ -4,7 +4,7 @@ export type StatsData = {
     memPerc: string,
     netIO: string,
     blockIO: string
-}
+};
 
 export type ServiceData = {
     name: string,
@@ -14,7 +14,7 @@ export type ServiceData = {
     status: string,
     health: string,
     recreateNecessary: boolean,
-}
+};
 
 export type SimpleStackData = {
     name: string,
@@ -28,14 +28,14 @@ export type SimpleStackData = {
     composeFileName: string,
     endpoint: string,
     ports: string[],
-}
+};
 
 export type StackData = SimpleStackData & {
     composeYAML: string,
     composeENV: string,
     primaryHostname: string,
     services: Record<string, ServiceData>
-}
+};
 
 export type AgentData = {
     url: string,
@@ -43,7 +43,7 @@ export type AgentData = {
     password: string,
     endpoint: string,
     name: string
-}
+};
 
 export enum DockerArtefactAction {
     Prune = "prune",
@@ -55,7 +55,7 @@ export enum DockerArtefactAction {
 export type DockerArtefactInfo = {
     name: string,
     actions: DockerArtefactAction[]
-}
+};
 
 export const DockerArtefactInfos: Record<string, DockerArtefactInfo> = {
     Container: {
@@ -83,12 +83,12 @@ export type DockerArtefactItem = {
     dangling: boolean,
     danglingLabel: string,
     excludedActions: DockerArtefactAction[]
-}
+};
 
 export type DockerArtefactData = {
     info: DockerArtefactInfo,
     data: DockerArtefactItem[]
-}
+};
 
 export type VersionMismatchData = {
     stackName: string,
@@ -96,13 +96,13 @@ export type VersionMismatchData = {
     composeImage: string,
     runningImage: string,
     composePath: string,
-}
+};
 
 export type VersionScanResultData = {
     mismatches: VersionMismatchData[],
     matched: { stackName: string; service: string; image: string }[],
     unmatchedServices: { stackName: string; service: string; composeImage: string }[],
-}
+};
 
 export type VersionSyncHistoryEntryData = {
     id: number,
@@ -114,4 +114,4 @@ export type VersionSyncHistoryEntryData = {
     composePath: string,
     isRevert: boolean,
     createdAt: string,
-}
+};

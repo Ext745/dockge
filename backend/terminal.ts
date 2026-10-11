@@ -148,7 +148,7 @@ export class Terminal {
      * Exit event handler
      * @param res
      */
-    protected exit = (res : {exitCode: number, signal?: number | undefined}) => {
+    protected exit = (res : { exitCode: number, signal?: number | undefined }) => {
         for (const socketID in this.socketList) {
             const socket = this.socketList[socketID];
             socket.emitAgent("terminalExit", this.name, res.exitCode);

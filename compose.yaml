@@ -7,22 +7,45 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/docker/dockge/data:/app/data
-      - /opt/docker/stacks:/opt/docker/stacks
+      - /opt/docker:/opt/docker
     environment:
+      - PUID=1000
+      - PGID=1000
       - DOCKGE_STACKS_DIR=/opt/docker/stacks
+      - DOCKGE_BIND_ROOTS=/opt/docker
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
 
 # ports: 5001 is Dockge's web UI (host:container).
 #   To listen on one address only: 192.168.1.10:5001:5001
 # /var/run/docker.sock: lets Dockge run docker compose for your stacks
 #   (root-equivalent access to Docker).
 # /opt/docker/dockge/data: Dockge's database and settings (login, agents,
-#   API keys). Back this folder up.
-# /opt/docker/stacks: your stacks. Both sides MUST be the same full path and
-#   MUST match DOCKGE_STACKS_DIR, or stack files end up in the wrong place.
-# DOCKGE_STACKS_DIR: where Dockge looks for stacks (same path as above).
+#   API keys, registry logins). Back this folder up.
+# /opt/docker: your stacks (/opt/docker/stacks) and their bind-mount folders
+#   (/opt/docker/<app>). Both sides MUST be the same full path.
+# PUID/PGID: the user Dockge runs as. It starts as root only to take ownership
+#   of its own folders and join the docker.sock group, then switches to this
+#   user. Remove both lines to run as root like versions before 2.4.0.
+# DOCKGE_STACKS_DIR: where Dockge looks for stacks (inside /opt/docker).
+# DOCKGE_BIND_ROOTS: Dockge creates missing bind-mount folders under these
+#   paths (comma-separated), owned by PUID/PGID, before a stack starts.
+#   ./relative folders inside a stack are always created.
+# read_only/tmpfs: the image can't be changed at runtime; scratch files go
+#   to /tmp in memory.
+# security_opt/cap_drop/cap_add: no privilege escalation, and only the
+#   capabilities the start-up step needs; Dockge itself runs with none.
 # Optional, under environment:
-#   - PUID=1000 and - PGID=1000: owner of stack files (both needed; default root)
 #   - TURNSTILE_SITE_KEY=... and - TURNSTILE_SECRET_KEY=...: CAPTCHA on login
 #   - DOCKGE_ALLOW_FRAMING=true: allow embedding in a dashboard iframe
-# Optional, under volumes:
-#   - /root/.docker/:/root/.docker: registry logins for private images

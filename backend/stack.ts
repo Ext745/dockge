@@ -27,6 +27,7 @@ import { Settings } from "./settings";
 import { ServiceData } from "../common/types";
 import { LABEL_STATUS_IGNORE } from "../common/compose-labels";
 import { ImageUpdateChecker } from "./image-update-checker";
+import { applyStackOwner, createBindMountDirs, permissionError, STACK_DIR_MODE, writeSecretFile } from "./stack-permissions";
 
 export class Stack {
 
@@ -44,6 +45,8 @@ export class Stack {
 
     protected static managedStackList: Map<string, Stack> = new Map();
     protected static globalENVCache? : { at : number, vars : Record<string, string> };
+    /** Last status error logged per stack, so a broken stack is logged once rather than on every poll */
+    protected static statusErrors : Map<string, string> = new Map();
 
     protected _services: Map<string, ServiceData> = new Map();
     protected _recreateNecessary: boolean = false;
@@ -183,7 +186,7 @@ export class Stack {
     }
 
     get composeArgs(): string[] {
-        let options = ["compose", "-f", path.join(this.path, this._composeFileName), "--project-directory", this.path];
+        let options = [ "compose", "-f", path.join(this.path, this._composeFileName), "--project-directory", this.path ];
         return options;
     }
 
@@ -365,8 +368,19 @@ export class Stack {
         return this._composeOverrideFileName;
     }
 
+    /**
+     * The stack folder. Checked here, where every stack path is built, so a name that is not a plain
+     * folder name (`..`, `/`) can't point outside the stacks folder before validate() runs
+     * @returns Absolute path inside the stacks folder
+     * @throws ValidationError for a name that would leave the stacks folder
+     */
     get path() : string {
-        return path.join(this.server.stacksDir, this.name);
+        const root = path.resolve(this.server.stacksDir);
+        const dir = path.resolve(root, this.name);
+        if (!dir.startsWith(root + path.sep)) {
+            throw new ValidationError("Invalid stack name");
+        }
+        return dir;
     }
 
     get fullPath() : string {
@@ -400,47 +414,75 @@ export class Stack {
             }
 
             // Create the stack folder
-            await fsAsync.mkdir(dir);
+            try {
+                await fsAsync.mkdir(dir, { mode: STACK_DIR_MODE });
+            } catch (e) {
+                throw permissionError(e, "create the stack folder", dir);
+            }
+            applyStackOwner(dir);
         } else {
             if (!await fileExists(dir)) {
                 throw new ValidationError("Stack not found");
             }
         }
 
+        // No compose check here: the editor runs "docker compose config" first (compose-validate.ts),
+        // blocking Deploy and asking before Save, so "Save anyway" can keep a work-in-progress file
+
         // Write or overwrite the compose.yaml
-        fs.writeFileSync(path.join(dir, this._composeFileName), this.composeYAML);
-        if (process.env.PUID && process.env.PGID) {
-            const uid = Number(process.env.PUID);
-            const gid = Number(process.env.PGID);
-            fs.lchownSync(dir, uid, gid);
-            fs.chownSync(path.join(dir, this._composeFileName), uid, gid);
+        const composePath = path.join(dir, this._composeFileName);
+        try {
+            fs.writeFileSync(composePath, this.composeYAML);
+        } catch (e) {
+            throw permissionError(e, "write", composePath);
         }
+        applyStackOwner(composePath);
 
         const overridePath = path.join(dir, this._composeOverrideFileName);
 
         // Write or overwrite the compose override file
         // If override file is not existing and the composeOverrideYAML is empty, we don't need to write it
         if (await fileExists(overridePath) || this.composeOverrideYAML.trim() !== "") {
-            await fsAsync.writeFile(overridePath, this.composeOverrideYAML);
+            try {
+                await fsAsync.writeFile(overridePath, this.composeOverrideYAML);
+            } catch (e) {
+                throw permissionError(e, "write", overridePath);
+            }
+            applyStackOwner(overridePath);
         }
 
         // Write .env file only when the user explicitly provided env content
         if (this._composeENV !== undefined) {
-            const envPath = path.join(dir, ".env");
-            await fsAsync.writeFile(envPath, this._composeENV);
-            if (process.env.PUID && process.env.PGID) {
-                const uid = Number(process.env.PUID);
-                const gid = Number(process.env.PGID);
-                fs.chownSync(envPath, uid, gid);
-            }
+            writeSecretFile(path.join(dir, ".env"), this._composeENV);
         }
 
         // The images (or their tags) may have changed
         ImageUpdateChecker.INSTANCE.recheckInBackground(this.server, this);
     }
 
+    /**
+     * Create missing bind-mount folders before `compose up` (relative ones, and absolute ones under
+     * DOCKGE_BIND_ROOTS or the stacks folder), so they belong to
+     * Dockge's user (or PUID/PGID) instead of being created as root by the Docker daemon.
+     * @param socket When given, each warning is sent to the UI as a toast
+     * @returns Warnings for folders that could not be prepared
+     */
+    prepareBindMounts(socket? : DockgeSocket) : string[] {
+        if (!this.isManagedByDockge) {
+            return [];
+        }
+        const warnings = createBindMountDirs(this.path, [ this.composeYAML, this.composeOverrideYAML ],
+            this.composeVariables(), this.server.bindRoots);
+        for (const msg of warnings) {
+            socket?.emitAgent("permissionWarning", { stackName: this.name,
+                msg });
+        }
+        return warnings;
+    }
+
     async deploy(socket : DockgeSocket, forceRecreate = false) : Promise<number> {
         const terminalName = getComposeTerminalName(socket.endpoint, this.name);
+        this.prepareBindMounts(socket);
         const extra = forceRecreate ? [ "--force-recreate" ] : [];
         let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("up", "-d", "--remove-orphans", ...extra), this.path);
         if (exitCode !== 0) {
@@ -660,7 +702,11 @@ export class Stack {
         if (!/^[a-z0-9][a-z0-9_-]*$/.test(stackName)) {
             throw new ValidationError("Invalid stack name");
         }
-        let dir = path.join(server.stacksDir, stackName);
+        const root = path.resolve(server.stacksDir);
+        const dir = path.resolve(root, stackName);
+        if (!dir.startsWith(root + path.sep)) {
+            throw new ValidationError("Invalid stack name");
+        }
 
         if (!skipFSOperations) {
             if (!await fileExists(dir) || !(await fsAsync.stat(dir)).isDirectory()) {
@@ -720,6 +766,7 @@ export class Stack {
             return exitCode;
         }
 
+        this.prepareBindMounts(socket);
         exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("up", "-d", "--remove-orphans"), this.path);
         if (exitCode !== 0) {
             throw new Error("Failed to restart, please check the terminal output for more information.");
@@ -749,6 +796,7 @@ export class Stack {
 
     async start(socket: DockgeSocket) {
         const terminalName = getComposeTerminalName(socket.endpoint, this.name);
+        this.prepareBindMounts(socket);
         let exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", this.getComposeOptions("up", "-d", "--remove-orphans"), this.path);
         if (exitCode !== 0) {
             throw new Error("Failed to start, please check the terminal output for more information.");
@@ -819,10 +867,21 @@ export class Stack {
         let statusList = new Map<string, Array<object>>();
 
         try {
-            let res = await childProcessAsync.spawn("docker", this.getComposeOptions("ps", "--format", "json"), {
-                cwd: this.path,
-                encoding: "utf-8",
-            });
+            // A stack not managed by Dockge (e.g. one listed by `docker compose ls` from another
+            // Dockge instance on the same host) has no folder under stacksDir, and spawning with a
+            // missing cwd fails with ENOENT. Query it by project name instead.
+            let res = this.isManagedByDockge
+                ? await childProcessAsync.spawn("docker", this.getComposeOptions("ps", "--format", "json"), {
+                    cwd: this.path,
+                    encoding: "utf-8",
+                })
+                : await childProcessAsync.spawn("docker", [ "compose", "-p", this.name, "ps", "--format", "json" ], {
+                    encoding: "utf-8",
+                });
+
+            if (Stack.statusErrors.delete(this.name)) {
+                log.info("getServiceStatusList", `${this.name}: status available again`);
+            }
 
             if (!res.stdout) {
                 return statusList;
@@ -854,13 +913,21 @@ export class Stack {
 
             return statusList;
         } catch (e) {
-            log.error("getServiceStatusList", e);
+            // The UI polls this every few seconds: log a broken stack once, and again only when the
+            // error changes, as one readable line instead of a stack trace per poll
+            const stderr = ((e as { stderr?: string | Buffer }).stderr ?? "").toString().trim();
+            const message = stderr || (e instanceof Error ? e.message : String(e));
+            if (Stack.statusErrors.get(this.name) !== message) {
+                Stack.statusErrors.set(this.name, message);
+                log.error("getServiceStatusList", `${this.name}: ${message}`);
+            }
             return statusList;
         }
     }
 
     async startService(socket: DockgeSocket, serviceName: string) {
         const terminalName = getComposeTerminalName(socket.endpoint, this.name);
+        this.prepareBindMounts(socket);
         const exitCode = await Terminal.exec(this.server, socket, terminalName, "docker", [ "compose", "up", "-d", serviceName ], this.path);
         if (exitCode !== 0) {
             throw new Error(`Failed to start service ${serviceName}, please check logs for more information.`);

@@ -507,7 +507,7 @@ export async function importContainer(server : DockgeServer, socket : DockgeSock
             force: true });
         await fsAsync.rm(backupDir, { recursive: true,
             force: true });
-        throw new Error(`Couldn't stop the original container, so nothing was changed: ${e instanceof Error ? e.message : e}`);
+        throw new Error(`Couldn't stop the original container, so nothing was changed: ${e instanceof Error ? e.message : e}`, { cause: e });
     }
 
     const stack = await Stack.getStack(server, stackName);
@@ -523,7 +523,7 @@ export async function importContainer(server : DockgeServer, socket : DockgeSock
         await fsAsync.rm(backupDir, { recursive: true,
             force: true });
         server.sendStackList();
-        throw new Error(`Deploying the new stack failed, so ${name} was put back as it was: ${e instanceof Error ? e.message : e}`);
+        throw new Error(`Deploying the new stack failed, so ${name} was put back as it was: ${e instanceof Error ? e.message : e}`, { cause: e });
     }
 
     server.sendStackList();

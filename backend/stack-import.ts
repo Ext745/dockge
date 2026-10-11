@@ -498,7 +498,7 @@ export async function importStack(server : DockgeServer, socket : DockgeSocket, 
                 force: true });
             await fsAsync.rm(backupDir, { recursive: true,
                 force: true });
-            throw new Error(`Imported, but redeploying from Dockge failed, so the import was undone: ${e instanceof Error ? e.message : e}`);
+            throw new Error(`Imported, but redeploying from Dockge failed, so the import was undone: ${e instanceof Error ? e.message : e}`, { cause: e });
         }
     }
 

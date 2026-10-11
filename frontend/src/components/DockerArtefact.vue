@@ -75,8 +75,8 @@ import { DockerArtefactAction, DockerArtefactData, DockerArtefactInfo, DockerArt
 const root = getCurrentInstance()?.proxy?.$root as any;
 
 const props = defineProps<{
-  endpoint: string;
-  artefact: DockerArtefactInfo;
+    endpoint: string;
+    artefact: DockerArtefactInfo;
 }>();
 
 // Injected from parent

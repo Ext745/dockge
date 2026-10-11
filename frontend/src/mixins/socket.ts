@@ -87,7 +87,7 @@ export default defineComponent({
          * @returns {string}
          */
         frontendVersion() {
-            // eslint-disable-next-line no-undef
+
             return FRONTEND_VERSION;
         },
 
@@ -277,6 +277,13 @@ export default defineComponent({
             socket.on("setup", () => {
                 console.log("setup");
                 this.$router.push("/setup");
+            });
+
+            // Permission problems the backend found (bind-mount folders, PUID/PGID): show them, don't leave them in the log
+            agentSocket.on("permissionWarning", (res) => {
+                if (res?.msg) {
+                    this.toastWarning(res.stackName ? `${res.stackName}: ${res.msg}` : res.msg);
+                }
             });
 
             agentSocket.on("terminalWrite", (terminalName, data) => {

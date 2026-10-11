@@ -1,0 +1,15 @@
+# Release gate for docker-release.yml and docker-base.yml (and local runs: trivy image --config trivy.yaml ...)
+severity:
+  - HIGH
+  - CRITICAL
+scan:
+  scanners:
+    - vuln
+pkg:
+  types:
+    - os
+    # The image ships its node_modules, so they are gated too, not only left to npm audit
+    - library
+vulnerability:
+  # Nothing to bump to yet; Gate 3 still reports them
+  ignore-unfixed: true

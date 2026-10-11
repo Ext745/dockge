@@ -39,7 +39,7 @@ export function decryptCredential(ciphertext: string): string {
     if (parts.length !== 3) {
         return ciphertext;
     }
-    const [ivHex, authTagHex, encrypted] = parts;
+    const [ ivHex, authTagHex, encrypted ] = parts;
     const key = getKeyBuffer();
     const iv = Buffer.from(ivHex, "hex");
     const authTag = Buffer.from(authTagHex, "hex");

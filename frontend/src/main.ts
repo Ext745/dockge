@@ -114,6 +114,15 @@ function rootApp() {
             toastError(msg : string) {
                 toast.error(this.$t(msg));
             },
+
+            /**
+             * Show a warning toast that stays until dismissed
+             * @param {string} msg Message to show
+             * @returns {void}
+             */
+            toastWarning(msg : string) {
+                toast.warning(msg, { timeout: false });
+            },
         },
         render: () => h(App),
     });

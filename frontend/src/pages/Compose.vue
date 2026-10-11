@@ -1074,6 +1074,19 @@ export default {
          * @returns {void}
          */
         checkPortsThen(action) {
+            // Check what is in the editor now, not the last version that parsed. Deploy only: an invalid
+            // file can still be kept with "Save anyway" (see validateThen())
+            if (action === "deploy") {
+                try {
+                    this.yamlToJSON(this.stack.composeYAML);
+                } catch (e) {
+                    clearTimeout(yamlErrorTimeout);
+                    this.yamlError = e.message;
+                    this.$root.toastError(e.message);
+                    return;
+                }
+            }
+
             this.processing = true;
             let settled = false;
             const settle = (conflicts) => {
@@ -1378,9 +1391,10 @@ export default {
             const config = doc.toJS() ?? {};
 
             // Check data types
-            // "services" must be an object
-            if (!config.services) {
-                config.services = {};
+            // "services" must be an object. A missing key is an error, not something to add: adding
+            // "services: {}" here used to be written back into the YAML, hiding a mistyped key
+            if (config.services === undefined || config.services === null) {
+                throw new Error("No \"services:\" section found in compose.yaml");
             }
 
             if (Array.isArray(config.services) || typeof config.services !== "object") {

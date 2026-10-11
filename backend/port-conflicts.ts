@@ -124,7 +124,7 @@ async function claimFromStacks(server : DockgeServer, stackName : string, claims
  * @returns {Promise<void>}
  */
 async function claimFromContainers(stackName : string, claims : PortClaims) {
-    let stdout = "";
+    let stdout : string;
     try {
         const res = await childProcessAsync.spawn("docker", [ "ps", "--format", "{{.Names}}\t{{.Label \"com.docker.compose.project\"}}\t{{.Ports}}" ], {
             encoding: "utf-8",
