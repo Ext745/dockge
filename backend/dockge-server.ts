@@ -630,11 +630,11 @@ export class DockgeServer {
         if (owner && uid !== undefined && uid !== 0 && (owner.uid !== uid || owner.gid !== gid)) {
             warn(`PUID/PGID=${owner.uid}:${owner.gid} differs from the user Dockge runs as (${processUser()}). `
                 + "Changing file ownership needs root, so new files are owned by this user instead. Remove `user:` from Dockge's compose file "
-                + "(Dockge then starts as root and switches to PUID/PGID itself), or set PUID/PGID to this user.");
+                + "and set DOCKGE_DROP_ROOT=true (Dockge then starts as root and switches to PUID/PGID itself), or set PUID/PGID to this user.");
         }
 
         log.info("server", `Running as ${uid === 0 ? "root" : processUser()}`
-            + (uid === 0 ? " (set PUID/PGID to run as a regular user)" : ""));
+            + (uid === 0 ? " (set PUID/PGID and DOCKGE_DROP_ROOT=true to run as a regular user)" : ""));
         log.info("server", `Bind-mount folders are created under: ${this.bindRoots.join(", ")} and inside each stack`);
 
         log.info("server", `Data Dir: ${this.config.dataDir}`);

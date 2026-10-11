@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Move a running Dockge install to the 2.4.0 runtime model: PUID/PGID instead of root or `user:`,
+# Move a running Dockge install to the non-root runtime model: PUID/PGID with DOCKGE_DROP_ROOT=true
+# instead of root or `user:`,
 # a bind-root mount so Dockge can create bind-mount folders, and the hardened settings.
 #
-#   bash migrate-to-puid.sh [version]        (default version: 2.4.0)
+#   bash migrate-to-puid.sh [version]        (default version: 2.12.0)
 #
 # It reads the running container (docker inspect + its compose labels), asks only what it can't
 # know, shows the new compose.yaml and a diff, and changes nothing until you answer y. It refuses
@@ -10,8 +11,8 @@
 # Backup, then rollback: see the end of the run. Needs bash and docker (with the compose plugin).
 set -euo pipefail
 
-VERSION="${1:-2.4.0}"
-IMAGE="ghcr.io/darthrater78/dockge"
+VERSION="${1:-2.12.0}"
+IMAGE="ghcr.io/ext745/dockge"
 
 S=
 docker ps >/dev/null 2>&1 || S=sudo
@@ -109,7 +110,7 @@ envs=()
 while read -r kv; do
     [ -n "$kv" ] || continue
     grep -qxF -- "$kv" <<<"$image_env" && continue
-    case "${kv%%=*}" in PUID | PGID | DOCKGE_STACKS_DIR | DOCKGE_BIND_ROOTS) continue ;; esac
+    case "${kv%%=*}" in PUID | PGID | DOCKGE_DROP_ROOT | DOCKGE_STACKS_DIR | DOCKGE_BIND_ROOTS) continue ;; esac
     envs+=("$kv")
 done < <(d inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CID")
 old_user=$(d inspect -f '{{.Config.User}}' "$CID")
@@ -168,6 +169,7 @@ trap 'rm -f "$new"' EXIT
     echo "    environment:"
     echo "      - PUID=$PUID"
     echo "      - PGID=$PGID"
+    echo "      - DOCKGE_DROP_ROOT=true"
     echo "      - DOCKGE_STACKS_DIR=$STACKS_DIR"
     [ -n "$BIND_ROOT" ] && echo "      - DOCKGE_BIND_ROOTS=$BIND_ROOT"
     for e in "${envs[@]}"; do echo "      - $(q "$e")"; done

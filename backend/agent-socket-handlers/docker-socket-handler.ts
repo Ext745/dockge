@@ -10,6 +10,7 @@ import path from "path";
 import AdmZip from "adm-zip";
 import { findPortConflicts } from "../port-conflicts";
 import { validateCompose } from "../compose-validate";
+import { needsRootHelper, zipDirAsRoot } from "../root-helper";
 import { ImageUpdateChecker } from "../image-update-checker";
 import { Settings } from "../settings";
 
@@ -63,13 +64,23 @@ export class DockerSocketHandler extends AgentSocketHandler {
                     throw new ValidationError("Only Dockge-managed stacks can be transferred.");
                 }
 
-                const zip = new AdmZip();
-                zip.addLocalFolder(stack.fullPath);
+                let content : Buffer;
+                try {
+                    const zip = new AdmZip();
+                    zip.addLocalFolder(stack.fullPath);
+                    content = zip.toBuffer();
+                } catch (e) {
+                    // Running as PUID/PGID: root-owned app data in the stack folder can't be read by this user
+                    if (!needsRootHelper(e)) {
+                        throw e;
+                    }
+                    content = await zipDirAsRoot(stack.fullPath);
+                }
 
                 callbackResult({
                     ok: true,
                     stackName: stack.name,
-                    contentBase64: zip.toBuffer().toString("base64"),
+                    contentBase64: content.toString("base64"),
                 }, callback);
             } catch (e) {
                 callbackError(e, callback);

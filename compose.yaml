@@ -1,6 +1,6 @@
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.11.2
+    image: ghcr.io/ext745/dockge:2.12.0
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -11,6 +11,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - DOCKGE_DROP_ROOT=true
       - DOCKGE_STACKS_DIR=/opt/docker/stacks
       - DOCKGE_BIND_ROOTS=/opt/docker
     read_only: true
@@ -35,9 +36,10 @@ services:
 #   API keys, registry logins). Back this folder up.
 # /opt/docker: your stacks (/opt/docker/stacks) and their bind-mount folders
 #   (/opt/docker/<app>). Both sides MUST be the same full path.
-# PUID/PGID: the user Dockge runs as. It starts as root only to take ownership
-#   of its own folders and join the docker.sock group, then switches to this
-#   user. Remove both lines to run as root like versions before 2.4.0.
+# PUID/PGID + DOCKGE_DROP_ROOT=true: the user Dockge runs as. It starts as root
+#   only to take ownership of its own folders and join the docker.sock group,
+#   then switches to this user. Without DOCKGE_DROP_ROOT, Dockge stays root and
+#   PUID/PGID only set the owner of the files it writes (as before 2.12.0).
 # DOCKGE_STACKS_DIR: where Dockge looks for stacks (inside /opt/docker).
 # DOCKGE_BIND_ROOTS: Dockge creates missing bind-mount folders under these
 #   paths (comma-separated), owned by PUID/PGID, before a stack starts.

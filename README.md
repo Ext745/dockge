@@ -8,13 +8,13 @@ A fancy, easy-to-use and reactive self-hosted docker compose.yaml stack-oriented
 
 [![GitHub Repo stars](https://img.shields.io/github/stars/Ext745/dockge?logo=github&style=flat)](https://github.com/Ext745/dockge) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Ext745/dockge?label=release)](https://github.com/Ext745/dockge/releases) [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Ext745/dockge/master?logo=github)](https://github.com/Ext745/dockge/commits/master/)
 
-## 🆕 What's new from upstream: darthrater78 2.3.x (included since this fork's v2.5.0)
+## 🆕 What's new from upstream: darthrater78 2.3.x and 2.4.0 (2.3.x included since this fork's v2.5.0, 2.4.0 since v2.12.0)
 
 Built on Louis's original design, [darthrater78/dockge](https://github.com/darthrater78/dockge) 2.3.0 adds a redesigned phone layout, a resizable stack list on desktop, port conflicts you can't miss, and a Compose Drift Check that works everywhere. Full list in [darthrater78's release notes](https://github.com/darthrater78/dockge#release-notes). This fork's own additions are in the "This fork — Ext745/dockge" section below.
 
 **2.3.1** catches the port conflicts 2.3.0 could miss (ports set through `.env` variables, `compose.override.yaml`, port ranges) and checks your ports when you Save or Deploy a stack. [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.3.1)
 
-**2.4.0** runs Dockge as a regular user: set `PUID`/`PGID` and it fixes the ownership of its own folders, joins the docker.sock group and drops root by itself. It also creates your stacks' bind-mount folders before they start, so containers can write to them without a `chown`. Installs without `PUID`/`PGID` keep running as root, as before. It also includes the security fixes planned for 2.3.2. See [Running as a regular user](#runtime). [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.4.0-dev.2)
+**2.4.0** can run Dockge as a regular user: it fixes the ownership of its own folders, joins the docker.sock group and drops root by itself. It also creates your stacks' bind-mount folders before they start, so containers can write to them without a `chown`, and includes security fixes (stack paths are checked to stay inside the stacks folder, hardened REST query parameters). **In this fork, dropping root is opt-in** with `DOCKGE_DROP_ROOT=true` next to `PUID`/`PGID`: without it, `PUID`/`PGID` keep their earlier meaning and an existing install doesn't change user on an update. See [Running as a regular user](#runtime). [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.4.0)
 
 <a id="mobile"></a>
 
@@ -99,7 +99,7 @@ Original Dockge intro video (Louis Lam, shows the 2023 UI): https://youtu.be/AWA
 
 ## 🤖 Built by Claude Code
 
-This is a fork of a fork. [darthrater78/dockge](https://github.com/darthrater78/dockge) — the base this repo builds on — had every line of its new code (from v1.5.2 through v2.3.1: REST API, Compose Drift Check, 2FA, port-conflict detection, CI hardening, the mobile redesign, and more) written by [Claude Code](https://claude.ai/code) under human direction, plus community PRs cherry-picked from [louislam/dockge](https://github.com/louislam/dockge) and its own fork collaborators. Full build history, the Dev Skills gate methodology, and contributor credits live in **[their README](https://github.com/darthrater78/dockge/blob/master/README.md)** — not duplicated here to keep this one short.
+This is a fork of a fork. [darthrater78/dockge](https://github.com/darthrater78/dockge) — the base this repo builds on — had every line of its new code (from v1.5.2 through v2.4.0: REST API, Compose Drift Check, 2FA, port-conflict detection, CI hardening, the mobile redesign, and more) written by [Claude Code](https://claude.ai/code) under human direction, plus community PRs cherry-picked from [louislam/dockge](https://github.com/louislam/dockge) and its own fork collaborators. Full build history, the Dev Skills gate methodology, and contributor credits live in **[their README](https://github.com/darthrater78/dockge/blob/master/README.md)** — not duplicated here to keep this one short.
 
 ### This fork — [Ext745/dockge](https://github.com/Ext745/dockge)
 
@@ -128,6 +128,7 @@ On top of that base, [Claude Code](https://claude.ai/code) ported the following 
 | **Prune protects stack images** | Agent Maintenance's image Prune and System Prune with "all images", and the REST API's `POST /api/system/prune`, used `docker … prune -a`, which removes every image no container uses — including the images of stacks that only run on demand (e.g. `profiles: ["manual"]` + `docker compose run --rm`), which can be many GB to re-download. Docker's prune can't exclude by name, so Dockge now runs Docker's prune without `-a` (plus `docker builder prune -a` for the build cache), then removes unused images itself, skipping any whose repository appears in a stack's compose file or override (with `.env`/`global.env` applied; all tags of that repository, since stacks often pick the tag through a variable). The summary lists what was kept. Images used by any container, running or stopped, are never removed. Plain `docker` commands are unaffected |
 | **Prune protects stack volumes** | Agent Maintenance's volume Prune with "all" used `docker volume prune -a`, which removes every unused named volume - including the data volumes of a stack that's merely "down". Dockge now runs Docker's plain prune (anonymous volumes only) and then removes unused volumes itself, keeping any a stack declares under the name Docker uses for it (`<project>_<key>`, with the project from a top-level `name:` or the folder; a custom `name:`; an `external` volume), with `.env`/`global.env` applied. The output lists what was kept. Plain Prune and System Prune's volume option only ever remove anonymous volumes on Docker 23+ and are unchanged |
 | **Image update available** | Each node compares the image every service of its stacks uses with the image's registry (a HEAD request for the tag's manifest digest, checked against the RepoDigests Docker recorded on pull; no skopeo, and Docker Hub doesn't count HEAD requests against its pull limit). Stacks with a newer image get a cloud icon in the stack list (an "Updates" chip on phones and an "Update available" option in the filter); on the stack page the affected services are badged and Update is highlighted. Checks run a minute after startup and then every 6 hours (Settings → Image updates: on/off, 1 hour to 1 week, Check now, applied to every online node), and again for a stack after Save, Deploy or Update. Skipped, never flagged: `build:` services, images pinned by digest, not pulled yet, or not on a registry (private registries need `docker login` inside the Dockge container). The REST API's `GET /api/stacks/:name/status` returns `imageUpdatesAvailable`. |
+| **Running as a regular user is opt-in** | darthrater78 2.4.0 makes `PUID`/`PGID` switch Dockge itself from root to that user. Here that needs `DOCKGE_DROP_ROOT=true` as well: before, `PUID`/`PGID` only set the owner of stack files, and an install that has them (with apps that write root-owned data into their stack folder) would otherwise change user on an image update, and lose the ability to delete or transfer those stacks. With the switch on, Delete and node-to-node Transfer finish the step `PUID:PGID` can't do (removing or reading root-owned app data) in a short-lived root helper container of Dockge's own image, with only that stack folder mounted, at the host path read from Dockge's own mounts. Upstream's server-side compose check on Save is left out: this fork's check (v2.6.0) already blocks Deploy and keeps "Save anyway" |
 
 <table>
   <tr>
@@ -143,7 +144,7 @@ What changed in each release of this fork: [Version History](#version-history).
 
 **Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 removed theirs in v1.8.0; this fork has its own registry-based check since **v2.11.0**, see above) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
-This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
+This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.4.0** (shipped as this fork's **v2.12.0**: running as a regular user with `PUID`/`PGID`, opt-in here via `DOCKGE_DROP_ROOT=true`; bind-mount folders created before a stack starts; stack paths checked to stay inside the stacks folder; ESLint 10; CodeQL scanning). Before that, **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
 
 ---
 
@@ -188,6 +189,9 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - ⌨️ (Ext745/dockge 2.11.0 🆕) Keyboard works in the stack list's filter menu and a stack's ⋮ menu — Escape closes them and the arrow keys move through them, instead of throwing an error
 - 🔄 (Ext745/dockge 2.11.1 🆕) System Prune refreshes Agent Maintenance's lists — removed images, containers, networks and volumes disappear right away instead of staying listed until a page reload; the summary names the images it removed
 - 📜 (Ext745/dockge 2.10.3 🆕) Update shows its output — the stack's Update button opens the terminal and streams the pull/recreate output, like Start/Stop/Deploy
+- 👤 (2.4.0 / Ext745/dockge 2.12.0 🆕) Run Dockge as a regular user — `PUID`/`PGID` with `DOCKGE_DROP_ROOT=true`: Dockge fixes the ownership of its own folders, joins the docker.sock group and drops root; existing installs keep running as root until they opt in ([details](#runtime))
+- 📁 (2.4.0 / Ext745/dockge 2.12.0 🆕) Bind-mount folders created before a stack starts — owned by `PUID:PGID` (or root), so containers can write to them without a `chown`
+- 🧰 (Ext745/dockge 2.12.0 🆕) Delete and Transfer work on root-owned app data when Dockge runs as a regular user — the step it can't do itself runs in a short-lived root helper container
 - 💾 (Ext745/dockge 2.10.2 🆕) "Prune all" volumes keeps your stacks' data — a stack that's "down" has no containers, so Docker counts its volumes (e.g. a database) as unused; Agent Maintenance's volume Prune with "all" now keeps every volume a stack's compose file declares
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
@@ -234,9 +238,7 @@ curl https://raw.githubusercontent.com/Ext745/dockge/master/compose.yaml --outpu
 docker compose up -d
 ```
 
-Paste it as a whole: the `{ }` makes your shell read every line before running any, so the IP question waits for you. Press Enter to accept the suggested address (your LAN IP, so Dockge isn't reachable on other interfaces such as a VPN or a public one), type a different IP, or type `all` to listen on every interface. The last line prints the address that answered.
-
-Dockge then runs as user `1000:1000` (see [Running as a regular user](#runtime)). It creates `data/` itself, and takes ownership of `/opt/docker` (the folder only, not what's in it) so it can create your apps' bind-mount folders there.
+The compose file sets `PUID`/`PGID` to `1000` with `DOCKGE_DROP_ROOT=true`, so Dockge runs as user `1000:1000` (see [Running as a regular user](#runtime)). It creates `data/` itself, and takes ownership of `/opt/docker` (the folder only, not what's in it) so it can create your apps' bind-mount folders there.
 
 Already running Dockge from another folder (such as `/opt/dockge` from older instructions)? Nothing needs to move; these paths are just the recommended layout for new installs.
 
@@ -248,11 +250,12 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.11.2` (the generator uses the upstream image). To set the owner of stack files, add under `environment:` (both are needed; the default is `root`):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.12.0` (the generator uses the upstream image). To run Dockge as a regular user, add under `environment:` (see [Running as a regular user](#runtime); without `DOCKGE_DROP_ROOT`, Dockge stays root and `PUID`/`PGID` only set the owner of the files it writes):
 
 ```yaml
       - PUID=1000
       - PGID=1000
+      - DOCKGE_DROP_ROOT=true
 ```
 
 ### -OR- copy and paste
@@ -262,7 +265,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.11.2
+    image: ghcr.io/ext745/dockge:2.12.0
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -273,6 +276,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - DOCKGE_DROP_ROOT=true
       - DOCKGE_STACKS_DIR=/opt/docker/stacks
       - DOCKGE_BIND_ROOTS=/opt/docker
     read_only: true
@@ -297,9 +301,10 @@ services:
 #   API keys, registry logins). Back this folder up.
 # /opt/docker: your stacks (/opt/docker/stacks) and their bind-mount folders
 #   (/opt/docker/<app>). Both sides MUST be the same full path.
-# PUID/PGID: the user Dockge runs as. It starts as root only to take ownership
-#   of its own folders and join the docker.sock group, then switches to this
-#   user. Remove both lines to run as root like versions before 2.4.0.
+# PUID/PGID + DOCKGE_DROP_ROOT=true: the user Dockge runs as. It starts as root
+#   only to take ownership of its own folders and join the docker.sock group,
+#   then switches to this user. Without DOCKGE_DROP_ROOT, Dockge stays root and
+#   PUID/PGID only set the owner of the files it writes (as before 2.12.0).
 # DOCKGE_STACKS_DIR: where Dockge looks for stacks (inside /opt/docker).
 # DOCKGE_BIND_ROOTS: Dockge creates missing bind-mount folders under these
 #   paths (comma-separated), owned by PUID/PGID, before a stack starts.
@@ -317,7 +322,7 @@ services:
 
 ## Running as a regular user (PUID/PGID)
 
-With `PUID` and `PGID` set (the quickstart uses `1000`), Dockge starts as root for a moment, then:
+With `PUID`, `PGID` and `DOCKGE_DROP_ROOT=true` set (the quickstart uses `1000`), Dockge starts as root for a moment, then:
 
 1. takes ownership of its own folders: `data/`, the stacks folder, each stack's folder and its `compose.yaml` / `compose.override.yaml` / `.env`, and the `DOCKGE_BIND_ROOTS` folders themselves. Your apps' data inside those folders is never touched;
 2. joins the group that owns `/var/run/docker.sock`, whatever its number is on your host;
@@ -333,21 +338,24 @@ It skips `~` paths, variables that aren't set, anything outside those roots, and
 
 | Your compose file | What happens |
 |---|---|
-| No `PUID`/`PGID`, no `user:` (installs before 2.4.0) | Runs as root, **exactly as before**. Nothing changes until you add `PUID`/`PGID` |
-| `PUID`/`PGID` set | Starts as root, fixes ownership, switches to `PUID:PGID` (above) |
+| No `PUID`/`PGID`, no `user:` | Runs as root, **exactly as before** |
+| `PUID`/`PGID` set, no `DOCKGE_DROP_ROOT` (installs before 2.12.0) | Runs as root, **as before**: the stack files and bind-mount folders it creates are owned by `PUID:PGID` |
+| `PUID`/`PGID` and `DOCKGE_DROP_ROOT=true` | Starts as root, fixes ownership, switches to `PUID:PGID` (above) |
 | `user: "1000:989"` (with or without `group_add`) | Kept as is: Dockge runs as that user from the start and can't change ownership. Bind-mount folders are still created, owned by that user |
 
-**Already running Dockge?** See [Upgrading to 2.4.0](#upgrade): what changes if you only update the image, and how to move to this setup.
+**Root-owned app data:** containers often write files as root into their stack folder (a `./data` folder with a `0700` subfolder, say), which `PUID:PGID` can't read or remove. When a stack's Delete or a node-to-node Transfer hits such a file, Dockge does that one step as root in a short-lived helper container of its own image (`--network none`, only that stack folder mounted, removed when done), through the `docker.sock` it already uses. The folder's host path is read from Dockge's own mounts.
+
+**Already running Dockge?** See [Upgrading to 2.12.0](#upgrade): what changes if you only update the image, and how to move to this setup.
 
 **Hardening in the quickstart:** a read-only container filesystem (scratch files go to an in-memory `/tmp`), `no-new-privileges`, and every capability dropped except the five the start-up step needs (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID`). Dockge itself runs with none.
 
 **What it doesn't change:** access to `docker.sock` is root-equivalent on the host, whoever holds it. Running as a regular user keeps files out of root's hands, and keeps the web console from being a root shell, but it is not a sandbox. Keep Dockge off the internet: bind the port to a LAN address (`192.168.1.10:5001:5001`) or put it behind a VPN or a TLS reverse proxy, turn on 2FA, and leave the console off unless you need it.
 
-**Private registries:** with `PUID`/`PGID`, logins are kept in `data/docker-config` (root can't share its `/root/.docker` with the new user). A `/root/.docker` mount from older instructions is copied there once on the first start.
+**Private registries:** with `DOCKGE_DROP_ROOT=true`, logins are kept in `data/docker-config` (root can't share its `/root/.docker` with the new user). A `/root/.docker` mount from older instructions is copied there once on the first start.
 
 <a id="upgrade"></a>
 
-## ⬆️ Upgrading to 2.4.0
+## ⬆️ Upgrading to 2.12.0
 
 ### If you only change the image tag
 
@@ -355,8 +363,8 @@ The [one-line update](#update) changes only the image tag. What Dockge does then
 
 | Your compose file today | After updating only the image |
 |---|---|
-| No `PUID`/`PGID`, no `user:` (most installs) | **Runs as root, exactly as before.** You will notice three things: Save checks the file with `docker compose` first; missing `./` bind-mount folders are created before a stack starts (as root, as Docker did); `.env` and `global.env` become readable by their owner only (`0600`) the next time they are saved. If root owns them, read them on the host with `sudo` |
-| `PUID`/`PGID` set. Before 2.4.0 these only set the owner of stack files, while Dockge itself ran as root | **Dockge now runs as that user.** On start it takes ownership of its data folder, the stacks folder and each stack's compose and `.env` files (not your apps' data), joins the group of `docker.sock`, and copies registry logins from a `/root/.docker` mount to `data/docker-config`. The web console runs as that user, not root. If `docker.sock` belongs to group `root` (some NAS and Docker Desktop setups), Dockge stays root and says so in its log |
+| No `PUID`/`PGID`, no `user:` (most installs) | **Runs as root, exactly as before.** You will notice two things: missing `./` bind-mount folders are created before a stack starts (as root, as Docker did); `.env` and `global.env` become readable by their owner only (`0600`) the next time they are saved. If root owns them, read them on the host with `sudo` |
+| `PUID`/`PGID` set (they set the owner of stack files while Dockge runs as root) | **Unchanged:** still runs as root, and `PUID`/`PGID` still set the owner of the files it writes, now also of the bind-mount folders it creates. To run as that user instead, add `DOCKGE_DROP_ROOT=true` (below) |
 | `user: "<uid>:<gid>"` (the old non-root workaround) | **Unchanged:** runs as that user. Bind-mount folders inside the stacks folder are now created as that user. If `PUID`/`PGID` are also set and differ, a warning appears after login |
 
 In every case your login, settings and stacks are kept, and your stacks keep running while Dockge restarts. What an image update does **not** add: bind-mount folders outside the stacks folder (they need the `/opt/docker` mount and `DOCKGE_BIND_ROOTS`), the read-only filesystem, `no-new-privileges` and the dropped capabilities. Those come from the compose file, below.
@@ -366,19 +374,19 @@ In every case your login, settings and stacks are kept, and your stacks keep run
 **With the migration script** (any install started with `docker compose`). Run it on the Docker host, as your normal user:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/darthrater78/dockge/master/extra/migrate-to-puid.sh -o migrate-to-puid.sh
+curl -fsSL https://raw.githubusercontent.com/Ext745/dockge/master/extra/migrate-to-puid.sh -o migrate-to-puid.sh
 less migrate-to-puid.sh      # read it first: it is short and changes nothing until you answer y
 bash migrate-to-puid.sh
 ```
 
-It reads your running Dockge (compose file, port and IP, data and stacks folders, other settings such as `TZ` or Turnstile keys), then asks for `PUID`/`PGID` (your ids by default) and the bind-root folder. That defaults to the folder above your stacks folder, such as `/opt/docker`; if that would be a system folder like `/opt`, it suggests the stacks folder instead. It then shows the new `compose.yaml` and a diff, and waits for `y`. Then it backs up the old file and the data folder to `~/dockge-backup-<date>`, switches, waits until Dockge answers, and prints the address and a ready-made undo command. It refuses, without changing anything, when the compose file has something it would lose: other services, custom networks, `env_file`, `${VARIABLE}` substitution or unknown settings. Use the steps below for those. The [one-line update](#update) keeps working afterwards.
+It reads your running Dockge (compose file, port and IP, data and stacks folders, other settings such as `TZ` or Turnstile keys), then asks for `PUID`/`PGID` (your ids by default) and the bind-root folder, and adds `DOCKGE_DROP_ROOT=true`. That defaults to the folder above your stacks folder, such as `/opt/docker`; if that would be a system folder like `/opt`, it suggests the stacks folder instead. It then shows the new `compose.yaml` and a diff, and waits for `y`. Then it backs up the old file and the data folder to `~/dockge-backup-<date>`, switches, waits until Dockge answers, and prints the address and a ready-made undo command. It refuses, without changing anything, when the compose file has something it would lose: other services, custom networks, `env_file`, `${VARIABLE}` substitution or unknown settings. Use the steps below for those. The [one-line update](#update) keeps working afterwards.
 
 **By hand:**
 
 1. **Back up.** In the folder with Dockge's `compose.yaml`: `docker compose stop dockge`, then copy `compose.yaml` and Dockge's data folder (the one mounted at `/app/data`) somewhere safe.
 2. **Edit `compose.yaml`**, keeping your own port and data folder:
    - remove `user:` and `group_add:` if you have them;
-   - add `PUID` and `PGID` with your own ids (`id -u`, `id -g`). Use your own group, not the docker group: that one is found automatically;
+   - add `PUID` and `PGID` with your own ids (`id -u`, `id -g`), and `DOCKGE_DROP_ROOT=true`. Use your own group, not the docker group: that one is found automatically;
    - mount the folder that holds your stacks *and* your apps' data at the same path on both sides (`/opt/docker:/opt/docker` in the quickstart). It replaces a separate stacks mount inside it. Then set `DOCKGE_BIND_ROOTS` to that folder, and keep `DOCKGE_STACKS_DIR`;
    - add `read_only`, `tmpfs`, `security_opt`, `cap_drop` and `cap_add` from the [quickstart compose file](#install);
    - set the image tag to the new version.
@@ -408,6 +416,7 @@ Change it to this. The data folder stays where it is, so nothing has to move:
     environment:
       - PUID=1000                    # your `id -u`
       - PGID=1000                    # your `id -g` (not the docker group: that one is found automatically)
+      - DOCKGE_DROP_ROOT=true        # switch to PUID/PGID after start-up
       - DOCKGE_STACKS_DIR=/opt/docker/stacks
       - DOCKGE_BIND_ROOTS=/opt/docker
     read_only: true
@@ -428,14 +437,14 @@ Back up first (`docker compose stop dockge`, then copy `compose.yaml` and the da
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.11.2`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.12.0`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.11.2; F=/opt/docker/dockge/compose.yaml
+V=2.12.0; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -608,6 +617,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.12.0**](https://github.com/Ext745/dockge/releases/tag/v2.12.0) | 2026-10-11 | Synced with darthrater78 v2.4.0: run as a regular user (`PUID`/`PGID`, **opt-in here with `DOCKGE_DROP_ROOT=true`**, so existing installs stay root), bind-mount folders created before a stack starts, stack-path and REST hardening, `.env` saved `0600`, ESLint 10 and CodeQL; with the switch on, Delete and Transfer handle root-owned app data through a short-lived root helper container; npm audit: 0 |
 | [**v2.11.2**](https://github.com/Ext745/dockge/releases/tag/v2.11.2) | 2026-10-05 | **Dependencies:** merges darthrater78's npm audit fixes (brace-expansion, engine.io, fast-uri, ip-address, joi) |
 | [**v2.11.1**](https://github.com/Ext745/dockge/releases/tag/v2.11.1) | 2026-10-05 | **Fix:** after System Prune, Agent Maintenance's lists didn't refresh, so removed images stayed listed (and Delete on them said "No such image"); the prune summary now names the removed images |
 | [**v2.11.0**](https://github.com/Ext745/dockge/releases/tag/v2.11.0) | 2026-10-02 | **Update available** detection: stacks with a newer image on their registry are marked in the stack list and on the stack page; checked every 6 hours on every node, with on/off, interval and Check now in Settings → Image updates; **fix:** Escape/arrow keys in the filter and stack ⋮ menus threw an error instead of closing/moving |

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Dockge container entrypoint.
 #
-# PUID/PGID unset (or 0), or the container started with `user:`: run as-is, exactly like
-# earlier versions. PUID/PGID set and started as root: take ownership of Dockge's own folders
+# PUID/PGID unset (or 0), DOCKGE_DROP_ROOT not "true", or the container started with `user:`: run
+# as-is, exactly like earlier versions. PUID/PGID and DOCKGE_DROP_ROOT=true set and started as
+# root: take ownership of Dockge's own folders
 # (not the app data inside your stacks), join the docker.sock group, then drop to PUID:PGID with
 # no capabilities. No host-side chown or docker group lookup needed.
 set -eu
@@ -14,6 +15,14 @@ log() {
 if [ "$(id -u)" != "0" ] || [ -z "${PUID:-}${PGID:-}" ]; then
     exec "$@"
 fi
+
+# Ext745/dockge: switching to PUID/PGID is opt-in. Without DOCKGE_DROP_ROOT=true, PUID/PGID keep
+# their earlier meaning (Dockge runs as root and gives the files it writes to PUID/PGID), so an
+# existing install doesn't change user, and lose access to root-owned app data, on an update
+case "${DOCKGE_DROP_ROOT:-}" in
+    true | 1 | yes) ;;
+    *) exec "$@" ;;
+esac
 
 case "${PUID:-}:${PGID:-}" in
     *[!0-9:]* | :* | *:)

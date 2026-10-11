@@ -80,7 +80,7 @@ export function applyStackOwner(target: string) {
             if (!chownWarned) {
                 chownWarned = true;
                 log.warn("stack", `Cannot set owner ${owner.uid}:${owner.gid} as ${processUser()}; files keep this user's ownership. `
-                    + "Remove `user:` from Dockge's compose file to let it switch to PUID/PGID itself.");
+                    + "Remove `user:` from Dockge's compose file and set DOCKGE_DROP_ROOT=true to let it switch to PUID/PGID itself.");
             }
             return;
         }
@@ -111,7 +111,7 @@ export function permissionError(e: unknown, action: string, target: string): unk
         return e;
     }
     return new Error(`Permission denied: Dockge (${processUser()}) cannot ${action} ${target}. `
-        + "Restart Dockge with PUID/PGID set so it fixes the ownership of its folders, or fix the owner of that folder on the host.");
+        + "Restart Dockge with PUID/PGID and DOCKGE_DROP_ROOT=true set so it fixes the ownership of its folders, or fix the owner of that folder on the host.");
 }
 
 /**

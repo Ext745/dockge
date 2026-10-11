@@ -9,7 +9,7 @@ current, up-to-date list; that section is the canonical changelog, not a
 separate doc.
 
 Currently on `master`, synced with darthrater78/dockge through their
-v2.3.1, released through this fork's own v2.11.2
+v2.4.0, released through this fork's own v2.12.0
 (`ghcr.io/ext745/dockge`). Typecheck/lint clean project-wide (0 eslint
 errors), all changes live-tested against real Docker agents.
 
@@ -50,3 +50,12 @@ Standing rules:
   `:base`/`:build-healthcheck` images are intentionally left as-is).
 - `docker-release.yml`'s gate job waits for a passing `ci.yml` run on
   the tagged commit, so push `master` before the tag.
+- Deliberate divergences from darthrater78 to keep when merging:
+  dropping root to PUID/PGID needs `DOCKGE_DROP_ROOT=true`
+  (`extra/entrypoint.sh`, `migrate-to-puid.sh`, README runtime/upgrade
+  sections) so installs with PUID/PGID don't change user on an update;
+  `backend/root-helper.ts` finishes Delete/Transfer on root-owned app
+  data; no server-side compose check in `Stack.save()` (our
+  `compose-validate.ts` keeps "Save anyway"); our own
+  `docker-base.yml`/`docker-release.yml` (no Trivy gate, no README-
+  section release notes); no `dev-banner.yml`.

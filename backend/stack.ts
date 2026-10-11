@@ -28,6 +28,7 @@ import { ServiceData } from "../common/types";
 import { LABEL_STATUS_IGNORE } from "../common/compose-labels";
 import { ImageUpdateChecker } from "./image-update-checker";
 import { applyStackOwner, createBindMountDirs, permissionError, STACK_DIR_MODE, writeSecretFile } from "./stack-permissions";
+import { emptyDirAsRoot, needsRootHelper } from "./root-helper";
 
 export class Stack {
 
@@ -508,10 +509,28 @@ export class Stack {
         }
 
         // Remove the stack folder
-        await fsAsync.rm(this.path, {
-            recursive: true,
-            force: true
-        });
+        try {
+            await fsAsync.rm(this.path, {
+                recursive: true,
+                force: true
+            });
+        } catch (e) {
+            // Running as PUID/PGID: app data a container wrote as root (./data) can't be removed by
+            // this user, and the containers are already gone, so finish the job as root
+            if (!needsRootHelper(e)) {
+                throw e;
+            }
+            try {
+                await emptyDirAsRoot(this.path);
+                await fsAsync.rm(this.path, {
+                    recursive: true,
+                    force: true
+                });
+            } catch (helperError) {
+                log.error("stack", `${this.name}: root helper failed: ${helperError}`);
+                throw permissionError(e, "remove", this.path);
+            }
+        }
         ImageUpdateChecker.INSTANCE.forgetStack(this.name);
 
         return exitCode;
