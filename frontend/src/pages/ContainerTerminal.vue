@@ -15,12 +15,15 @@
             <template v-else>
                 <h1 class="mb-3">{{ $t("terminal") }} - {{ serviceName }} ({{ stackName }})</h1>
 
-                <div class="mb-3">
+                <div v-if="shell !== 'sh'" class="mb-3">
                     <router-link :to="sh" class="btn btn-normal me-2">{{ $t("Switch to sh") }}</router-link>
                 </div>
             </template>
 
+            <!-- Keyed on the terminal name: switching shell only changes a route param, so without a key
+                 the same Terminal stays mounted and keeps talking to the old shell -->
             <TerminalPanel
+                :key="terminalName"
                 storage-key="dockge-terminal-height" :rows="20"
                 :fill-height="$root.isMobile ? 'calc(100dvh - 56px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 48px)' : null" mode="interactive" :name="terminalName" :stack-name="stackName" :service-name="serviceName" :shell="shell" :endpoint="endpoint"
             />
@@ -53,7 +56,7 @@ export default {
             return this.$route.params.serviceName;
         },
         terminalName() {
-            return getContainerExecTerminalName(this.endpoint, this.stackName, this.serviceName, 0);
+            return getContainerExecTerminalName(this.endpoint, this.stackName, this.serviceName, this.shell, 0);
         },
         stackLink() {
             return this.endpoint ? `/compose/${this.stackName}/${this.endpoint}` : `/compose/${this.stackName}`;

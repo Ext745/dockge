@@ -306,8 +306,8 @@ export function getContainerTerminalName(endpoint : string, container : string) 
     return "container-" + endpoint + "-" + container;
 }
 
-export function getContainerExecTerminalName(endpoint : string, stackName : string, container : string, index : number) {
-    return "container-exec-" + endpoint + "-" + stackName + "-" + container + "-" + index;
+export function getContainerExecTerminalName(endpoint : string, stackName : string, container : string, shell : string, index : number) {
+    return "container-exec-" + endpoint + "-" + stackName + "-" + container + "-" + shell + "-" + index;
 }
 
 export function getAgentMaintenanceTerminalName(endpoint : string) {

@@ -114,10 +114,9 @@ export default {
         // Add right-click context menu handler for paste
         this.$refs.terminal.addEventListener("contextmenu", this.handleContextMenu);
 
-        // Add selection handler for copy to clipboard
-        this.terminal.onSelectionChange(() => {
-            this.handleSelection();
-        });
+        // Copy the selection once the mouse is released. onSelectionChange fires on every mousemove while
+        // dragging, which is not a user activation, so the HTTP fallback copy failed (and toasted) there.
+        this.$refs.terminal.addEventListener("mouseup", this.handleSelection);
 
         // Notify parent component when data is received
         this.terminal.onCursorMove(() => {
@@ -163,6 +162,7 @@ export default {
         this.$root.unbindTerminal(this.name);
         this.terminal.dispose();
         this.$refs.terminal?.removeEventListener("contextmenu", this.handleContextMenu);
+        this.$refs.terminal?.removeEventListener("mouseup", this.handleSelection);
     },
 
     methods: {
@@ -186,14 +186,11 @@ export default {
         },
 
         interactiveTerminalConfig() {
-            this.terminal.onKey(e => {
-                // Handle Ctrl+V for paste
-                if (e.key === "\u0016" || (e.domEvent?.ctrlKey && e.key.toLowerCase() === "v")) {
-                    this.handlePaste();
-                    return;
-                }
+            this.terminal.attachCustomKeyEventHandler(this.handleClipboardKey);
 
-                this.$root.emitAgent(this.endpoint, "terminalInput", this.name, e.key, (res) => {
+            // onData, not onKey: pasted text (native paste event) and IME input only arrive through onData
+            this.terminal.onData(data => {
+                this.$root.emitAgent(this.endpoint, "terminalInput", this.name, data, (res) => {
                     // In "progress" mode the server-side terminal disappears once
                     // the operation finishes, so ignore "terminal not found"
                     // errors that happen when the user keeps typing afterwards.
@@ -289,13 +286,46 @@ export default {
         },
 
         /**
+         * Clipboard shortcuts, for xterm's custom key handler. Returning false makes xterm ignore the key
+         * without cancelling it, so the browser performs its own copy/paste on xterm's hidden textarea and
+         * xterm's native copy/paste listeners handle it. Unlike navigator.clipboard, those work over plain
+         * HTTP. (Cmd+C / Cmd+V on macOS already reach the browser untouched.)
+         * - Ctrl+V / Ctrl+Shift+V: paste
+         * - Ctrl+C with a selection: copy (without a selection it is still sent as SIGINT)
+         * - Ctrl+Shift+C: copy (not a native copy shortcut, so copied here)
+         * @param {KeyboardEvent} event Key event
+         * @returns {boolean} false if xterm should leave the key alone
+         */
+        handleClipboardKey(event) {
+            if (!event.ctrlKey || event.altKey || event.metaKey) {
+                return true;
+            }
+            const key = event.key.toLowerCase();
+            if (key === "v") {
+                return false;
+            }
+            if (key === "c" && event.shiftKey) {
+                event.preventDefault();
+                if (event.type === "keydown" && this.terminal.hasSelection()) {
+                    this.copyToClipboard(this.terminal.getSelection());
+                }
+                return false;
+            }
+            if (key === "c" && this.terminal.hasSelection()) {
+                return false;
+            }
+            return true;
+        },
+
+        /**
          * Handle clipboard paste operation
          */
         async handlePaste() {
             try {
                 const text = await navigator.clipboard.readText();
                 if (text) {
-                    this.pasteText(text);
+                    // terminal.paste() emits through onData, applying bracketed paste mode if the shell set it
+                    this.terminal.paste(text);
                 }
             } catch (error) {
                 console.error("Failed to read from clipboard:", error);
@@ -303,39 +333,27 @@ export default {
         },
 
         /**
-         * Paste text into the terminal based on current mode
-         */
-        pasteText(text) {
-            if (this.mode === "mainTerminal" || this.mode === "interactive") {
-                // Send directly to the server-side shell
-                this.$root.emitAgent(this.endpoint, "terminalInput", this.name, text, (res) => {
-                    if (!res.ok) {
-                        this.$root.toastRes(res);
-                    }
-                });
-            }
-        },
-
-        /**
-         * Handle right-click context menu for paste operation
+         * Right-click pastes, where the Clipboard API is available (HTTPS or localhost). Otherwise the
+         * browser's own context menu is left alone: its Copy and Paste work through xterm's native
+         * listeners, while navigator.clipboard.readText() does not exist over plain HTTP.
          */
         handleContextMenu(event) {
-            // Prevent default context menu
-            event.preventDefault();
-
-            // Only handle paste for modes that support input
-            if (this.mode === "mainTerminal" || this.mode === "interactive") {
-                this.handlePaste();
+            if (this.mode !== "mainTerminal" && this.mode !== "interactive") {
+                return;
             }
+            if (!navigator.clipboard?.readText) {
+                return;
+            }
+            event.preventDefault();
+            this.handlePaste();
         },
 
         /**
          * Handle text selection in terminal - copy to clipboard
          */
         handleSelection() {
-            const selectedText = this.terminal.getSelection();
-            if (selectedText && selectedText.length > 0) {
-                this.copyToClipboard(selectedText);
+            if (this.terminal.hasSelection()) {
+                this.copyToClipboard(this.terminal.getSelection());
             }
         },
 
@@ -388,6 +406,8 @@ export default {
          * @returns {boolean} Whether the copy succeeded
          */
         legacyCopyToClipboard(text) {
+            // The temporary textarea takes focus, which would leave the terminal no longer receiving keys
+            const previousFocus = document.activeElement;
             const textarea = document.createElement("textarea");
             textarea.value = text;
             // Keep it out of the visible layout/flow without display:none,
@@ -408,6 +428,7 @@ export default {
             }
 
             document.body.removeChild(textarea);
+            previousFocus?.focus?.({ preventScroll: true });
             return success;
         },
 

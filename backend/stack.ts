@@ -869,7 +869,7 @@ export class Stack {
     }
 
     async joinContainerTerminal(socket: DockgeSocket, serviceName: string, shell : string = "sh", index: number = 0) {
-        const terminalName = getContainerExecTerminalName(socket.endpoint, this.name, serviceName, index);
+        const terminalName = getContainerExecTerminalName(socket.endpoint, this.name, serviceName, shell, index);
         let terminal = Terminal.getTerminal(terminalName);
 
         if (!terminal) {
