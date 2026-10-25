@@ -59,8 +59,61 @@ class KumaRateLimiter {
     }
 }
 
-export const loginRateLimiter = new KumaRateLimiter({
-    tokensPerInterval: 20,
+/**
+ * A separate KumaRateLimiter for each key (e.g. client IP address)
+ */
+class KeyedRateLimiter {
+
+    config : KumaRateLimiterOpts;
+    limiters : Map<string, { limiter : KumaRateLimiter, lastUsed : number }> = new Map();
+
+    /**
+     * @param {object} config Configuration of each key's rate limiter
+     */
+    constructor(config : KumaRateLimiterOpts) {
+        this.config = config;
+    }
+
+    /**
+     * Should the request of this key be passed through
+     * @param key Key, e.g. the client IP address
+     * @param callback Callback function to call with decision
+     * @returns {Promise<boolean>} Should the request be allowed?
+     */
+    async pass(key : string, callback : KumaRateLimiterCallback) {
+        const now = Date.now();
+
+        // Forget keys idle for an hour, so the map does not grow forever
+        for (const [ oldKey, entry ] of this.limiters) {
+            if (now - entry.lastUsed > 60 * 60 * 1000) {
+                this.limiters.delete(oldKey);
+            }
+        }
+
+        let entry = this.limiters.get(key);
+        if (!entry) {
+            entry = {
+                limiter: new KumaRateLimiter(this.config),
+                lastUsed: now,
+            };
+            this.limiters.set(key, entry);
+        }
+        entry.lastUsed = now;
+        return await entry.limiter.pass(callback);
+    }
+}
+
+// Each client address first, then all clients together. A refused attempt
+// must not use a token of the global limit, or one client locks out everyone
+export const loginRateLimiter = new KeyedRateLimiter({
+    tokensPerInterval: 10,
+    interval: "minute",
+    fireImmediately: true,
+    errorMessage: "Too frequently, try again later."
+});
+
+export const loginGlobalRateLimiter = new KumaRateLimiter({
+    tokensPerInterval: 30,
     interval: "minute",
     fireImmediately: true,
     errorMessage: "Too frequently, try again later."

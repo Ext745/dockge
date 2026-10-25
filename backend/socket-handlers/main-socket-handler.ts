@@ -4,7 +4,7 @@ import { SocketHandler } from "../socket-handler.js";
 import { DockgeServer } from "../dockge-server";
 import { log } from "../log";
 import { R } from "redbean-node";
-import { loginRateLimiter, twoFaRateLimiter } from "../rate-limiter";
+import { loginGlobalRateLimiter, loginRateLimiter, twoFaRateLimiter } from "../rate-limiter";
 import { generatePasswordHash, shake256, SHAKE256_LENGTH, verifyPassword } from "../password-hash";
 import { User } from "../models/user";
 import {
@@ -227,8 +227,8 @@ export class MainSocketHandler extends SocketHandler {
                 }
             }
 
-            // Login Rate Limit
-            if (!await loginRateLimiter.pass(callback)) {
+            // Login Rate Limit, for each client address first, then for all clients
+            if (!await loginRateLimiter.pass(clientIP, callback) || !await loginGlobalRateLimiter.pass(callback)) {
                 log.info("auth", `Too many failed requests for user ${data.username}. IP=${clientIP}`);
                 return;
             }

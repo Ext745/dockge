@@ -10,9 +10,12 @@
                 <div v-if="!isEditMode">
                     <span class="badge me-1" :class="bgStyle">{{ status }}</span>
 
-                    <a v-for="port in (ports ?? envsubstService.ports)" :key="port" :href="parsePort(port).url" target="_blank">
-                        <span class="badge me-1 bg-secondary">{{ parsePort(port).display }}</span>
-                    </a>
+                    <template v-for="port in (ports ?? envsubstService.ports)" :key="port">
+                        <a v-if="parsePort(port).url" :href="parsePort(port).url" target="_blank" rel="noopener">
+                            <span class="badge me-1 bg-secondary">{{ parsePort(port).display }}</span>
+                        </a>
+                        <span v-else class="badge me-1 bg-secondary">{{ parsePort(port).display }}</span>
+                    </template>
                 </div>
             </div>
             <div :class="$root.isMobile ? 'col-12 mt-2' : 'col-7'">

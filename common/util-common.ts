@@ -474,8 +474,20 @@ export function parseDockerPort(input : string, hostname : string) {
         protocol = "http";
     }
 
+    // Only web URLs become links. The protocol is whatever follows the "/"
+    // in the compose file or agent data, so "8080:80/javascript" must not
+    // turn into a javascript: link
+    let url = "";
+    if (protocol === "http" || protocol === "https") {
+        try {
+            url = new URL(protocol + "://" + hostname + ":" + portInt).href;
+        } catch {
+            url = "";
+        }
+    }
+
     return {
-        url: protocol + "://" + hostname + ":" + portInt,
+        url,
         display: display,
     };
 }

@@ -104,6 +104,12 @@ export class AgentProxySocketHandler extends SocketHandler {
                 if (e instanceof Error) {
                     log.warn("agent", e.message);
                 }
+                // Answer a request that could not be forwarded (agent offline
+                // or removed), or the client waits for an answer forever
+                const callback = args[args.length - 1];
+                if (typeof callback === "function") {
+                    callbackError(e, callback);
+                }
             }
         });
 
