@@ -3,4 +3,7 @@
 #   - id: CVE-2026-12345
 #     statement: "libfoo is in the base image but never loaded; waived by <user> 2026-10-08"
 #     expired_at: 2026-12-31
-vulnerabilities: []
+vulnerabilities:
+  - id: CVE-2026-78669
+    statement: "golang.org/x/net 0.58.0 in the docker-compose plugin: client-side HTTP/2 SETTINGS-flood DoS; registries are trusted; no compose release with x/net 0.60.0 yet (v5.6.1 still 0.58.0); waived by darthrater78 2026-10-22"
+    expired_at: 2026-11-30

@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9
+FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 RUN apt update && apt upgrade --yes --no-install-recommends && apt install --yes --no-install-recommends \
     curl \
     ca-certificates \

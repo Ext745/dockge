@@ -8,13 +8,15 @@ A fancy, easy-to-use and reactive self-hosted docker compose.yaml stack-oriented
 
 [![GitHub Repo stars](https://img.shields.io/github/stars/Ext745/dockge?logo=github&style=flat)](https://github.com/Ext745/dockge) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Ext745/dockge?label=release)](https://github.com/Ext745/dockge/releases) [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Ext745/dockge/master?logo=github)](https://github.com/Ext745/dockge/commits/master/)
 
-## 🆕 What's new from upstream: darthrater78 2.3.x and 2.4.0 (2.3.x included since this fork's v2.5.0, 2.4.0 since v2.12.0)
+## 🆕 What's new from upstream: darthrater78 2.3.x and 2.4.x (2.3.x included since this fork's v2.5.0, 2.4.0 since v2.12.0, 2.4.1 since v2.12.2)
 
 Built on Louis's original design, [darthrater78/dockge](https://github.com/darthrater78/dockge) 2.3.0 adds a redesigned phone layout, a resizable stack list on desktop, port conflicts you can't miss, and a Compose Drift Check that works everywhere. Full list in [darthrater78's release notes](https://github.com/darthrater78/dockge#release-notes). This fork's own additions are in the "This fork — Ext745/dockge" section below.
 
 **2.3.1** catches the port conflicts 2.3.0 could miss (ports set through `.env` variables, `compose.override.yaml`, port ranges) and checks your ports when you Save or Deploy a stack. [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.3.1)
 
 **2.4.0** can run Dockge as a regular user: it fixes the ownership of its own folders, joins the docker.sock group and drops root by itself. It also creates your stacks' bind-mount folders before they start, so containers can write to them without a `chown`, and includes security fixes (stack paths are checked to stay inside the stacks folder, hardened REST query parameters). **In this fork, dropping root is opt-in** with `DOCKGE_DROP_ROOT=true` next to `PUID`/`PGID`: without it, `PUID`/`PGID` keep their earlier meaning and an existing install doesn't change user on an update. See [Running as a regular user](#runtime). [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.4.0)
+
+**2.4.1** is a security update: the image runs Node.js 22.23.4, which fixes the [October 2026 Node.js security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases) (a Brotli decoder remote-code-execution bug and TLS hostname-check bypasses), and the healthcheck is rebuilt with Go 1.27.3. Nothing else changes. [Release notes](https://github.com/darthrater78/dockge/releases/tag/v2.4.1)
 
 <a id="mobile"></a>
 
@@ -675,6 +677,8 @@ This fork doesn't run its own issue tracker or discussion board. Almost all of D
 
 ### Security Issues
 Please report privately: https://github.com/Ext745/dockge/security/advisories/new
+
+How Dockge handles security (login, API key, stored data, releases): [Security architecture](SECURITY.md#security-architecture)
 
 ### Translation
 If you want to translate Dockge into your language, please read [Translation Guide](https://github.com/Ext745/dockge/blob/master/frontend/src/lang/README.md)
