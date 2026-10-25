@@ -146,7 +146,7 @@ What changed in each release of this fork: [Version History](#version-history).
 
 **Explicitly not ported:** hamphh's skopeo-based image-update checker (darthrater78 removed theirs in v1.8.0; this fork has its own registry-based check since **v2.11.0**, see above) and hamphh's dedicated mobile UI (darthrater78 has since shipped its own full mobile redesign in 2.3.0, which this fork now includes). NekoSuneProjectsForks/dockge's container file browser (feature doesn't exist in this fork) and its own node/agent filter (redundant with the category filter above) were skipped for the same reason — nothing to port against, or already covered.
 
-This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.4.0** (shipped as this fork's **v2.12.0**: running as a regular user with `PUID`/`PGID`, opt-in here via `DOCKGE_DROP_ROOT=true`; bind-mount folders created before a stack starts; stack paths checked to stay inside the stacks folder; ESLint 10; CodeQL scanning). Before that, **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
+This fork is kept in sync with darthrater78/dockge via regular merges — last synced through **v2.4.1** (the Node.js 22.23.4 / Go 1.27.3 security update, shipped as this fork's **v2.12.2**). Before that, **v2.4.0** (shipped as this fork's **v2.12.0**: running as a regular user with `PUID`/`PGID`, opt-in here via `DOCKGE_DROP_ROOT=true`; bind-mount folders created before a stack starts; stack paths checked to stay inside the stacks folder; ESLint 10; CodeQL scanning). Before that, **v2.3.1** (expandable terminal panels, security audit fixes, mobile redesign, resizable desktop stack list, fast Compose Drift Check scan, port-conflict detection from `${VAR}`/override files/ranges with a check on save/deploy), shipped as this fork's **v2.5.0**. This fork's own additions carry over into the new layout: the interactive progress terminal and Download Log button sit in the new mobile Logs tab and alongside the resizable/expandable terminal panel, and the desktop category filter coexists with upstream's port-conflict banner. Re-verified end-to-end after the merge (deploy, port-conflict dialog, download log, node-to-node transfer between two separate Docker daemons, mobile Logs tab via an agent).
 
 ---
 
@@ -257,7 +257,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.12.1` (the generator uses the upstream image). To run Dockge as a regular user, add under `environment:` (see [Running as a regular user](#runtime); without `DOCKGE_DROP_ROOT`, Dockge stays root and `PUID`/`PGID` only set the owner of the files it writes):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.12.2` (the generator uses the upstream image). To run Dockge as a regular user, add under `environment:` (see [Running as a regular user](#runtime); without `DOCKGE_DROP_ROOT`, Dockge stays root and `PUID`/`PGID` only set the owner of the files it writes):
 
 ```yaml
       - PUID=1000
@@ -272,7 +272,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.12.1
+    image: ghcr.io/ext745/dockge:2.12.2
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -444,14 +444,14 @@ Back up first (`docker compose stop dockge`, then copy `compose.yaml` and the da
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.12.1`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.12.2`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.12.1; F=/opt/docker/dockge/compose.yaml
+V=2.12.2; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
@@ -624,6 +624,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| [**v2.12.2**](https://github.com/Ext745/dockge/releases/tag/v2.12.2) | 2026-10-25 | Synced with darthrater78 v2.4.1 (Node.js 22.23.4 and Go 1.27.3 security update). **Fixes** (found by dockge-mod's code review): actions on an offline agent fail right away instead of spinning forever; login limit per client address, so one client can't lock everyone out; port badges never become `javascript:` links. npm audit fixes (body-parser, qs, fast-uri, ip-address) |
 | [**v2.12.1**](https://github.com/Ext745/dockge/releases/tag/v2.12.1) | 2026-10-18 | **Fix:** paste works in container terminals (Ctrl+V, Ctrl+Shift+V, right-click), including over plain HTTP; select-to-copy no longer fails or takes focus away over HTTP; Ctrl+C copies when text is selected; "Switch to sh" really switches to sh |
 | [**v2.12.0**](https://github.com/Ext745/dockge/releases/tag/v2.12.0) | 2026-10-11 | Synced with darthrater78 v2.4.0: run as a regular user (`PUID`/`PGID`, **opt-in here with `DOCKGE_DROP_ROOT=true`**, so existing installs stay root), bind-mount folders created before a stack starts, stack-path and REST hardening, `.env` saved `0600`, ESLint 10 and CodeQL; with the switch on, Delete and Transfer handle root-owned app data through a short-lived root helper container; npm audit: 0 |
 | [**v2.11.2**](https://github.com/Ext745/dockge/releases/tag/v2.11.2) | 2026-10-05 | **Dependencies:** merges darthrater78's npm audit fixes (brace-expansion, engine.io, fast-uri, ip-address, joi) |
