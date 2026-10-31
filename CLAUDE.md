@@ -9,7 +9,7 @@ current, up-to-date list; that section is the canonical changelog, not a
 separate doc.
 
 Currently on `master`, synced with darthrater78/dockge through their
-v2.4.1, released through this fork's own v2.12.2
+v2.4.2, released through this fork's own v2.12.3
 (`ghcr.io/ext745/dockge`). Typecheck/lint clean project-wide (0 eslint
 errors), all changes live-tested against real Docker agents.
 
@@ -58,4 +58,6 @@ Standing rules:
   data; no server-side compose check in `Stack.save()` (our
   `compose-validate.ts` keeps "Save anyway"); our own
   `docker-base.yml`/`docker-release.yml` (no Trivy gate, no README-
-  section release notes); no `dev-banner.yml`.
+  section release notes, so not their CHANGELOG.md); no `dev-banner.yml`;
+  one README: upstream's split into `docs/*.md` + `CHANGELOG.md`
+  (v2.4.2) was dropped - port their doc changes into README instead.
