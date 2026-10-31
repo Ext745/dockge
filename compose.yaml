@@ -7,13 +7,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/docker/dockge/data:/app/data
-      - /opt/docker:/opt/docker
+      - /opt/docker/stacks:/opt/docker/stacks
     environment:
       - PUID=1000
       - PGID=1000
       - DOCKGE_DROP_ROOT=true
       - DOCKGE_STACKS_DIR=/opt/docker/stacks
-      - DOCKGE_BIND_ROOTS=/opt/docker
     read_only: true
     tmpfs:
       - /tmp
@@ -34,16 +33,14 @@ services:
 #   (root-equivalent access to Docker).
 # /opt/docker/dockge/data: Dockge's database and settings (login, agents,
 #   API keys, registry logins). Back this folder up.
-# /opt/docker: your stacks (/opt/docker/stacks) and their bind-mount folders
-#   (/opt/docker/<app>). Both sides MUST be the same full path.
+# /opt/docker/stacks: your stacks. Both sides MUST be the same full path.
+#   Dockge sees only this folder, not your apps' data elsewhere.
 # PUID/PGID + DOCKGE_DROP_ROOT=true: the user Dockge runs as. It starts as root
 #   only to take ownership of its own folders and join the docker.sock group,
 #   then switches to this user. Without DOCKGE_DROP_ROOT, Dockge stays root and
 #   PUID/PGID only set the owner of the files it writes (as before 2.12.0).
-# DOCKGE_STACKS_DIR: where Dockge looks for stacks (inside /opt/docker).
-# DOCKGE_BIND_ROOTS: Dockge creates missing bind-mount folders under these
-#   paths (comma-separated), owned by PUID/PGID, before a stack starts.
-#   ./relative folders inside a stack are always created.
+# DOCKGE_STACKS_DIR: where Dockge looks for stacks. Missing ./relative
+#   bind-mount folders inside a stack are created, owned by PUID/PGID.
 # read_only/tmpfs: the image can't be changed at runtime; scratch files go
 #   to /tmp in memory.
 # security_opt/cap_drop/cap_add: no privilege escalation, and only the
@@ -51,3 +48,8 @@ services:
 # Optional, under environment:
 #   - TURNSTILE_SITE_KEY=... and - TURNSTILE_SECRET_KEY=...: CAPTCHA on login
 #   - DOCKGE_ALLOW_FRAMING=true: allow embedding in a dashboard iframe
+# Bind-mount folders outside the stacks folder (such as /opt/docker/<app>) are
+#   created by Docker, owned by root, as upstream. If the app runs as a regular
+#   user, create its folder first (mkdir -p, then chown).
+# Installed with an older quickstart (it mounted /opt/docker:/opt/docker)?
+#   See "Installed with an older quickstart?" in the README.

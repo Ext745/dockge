@@ -62,3 +62,22 @@ jobs:
 
       - name: Build frontend
         run: npm run build:frontend
+
+      - name: Download shellcheck
+        env:
+          # Bumped by hand; checksum is the release asset's digest from the GitHub API, so a
+          # tampered or substituted binary is refused rather than run
+          SHELLCHECK_VERSION: 0.11.0
+          SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+        run: |
+          set -euo pipefail
+          curl -fsSL -o shellcheck.tar.gz \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.gz"
+          echo "${SHELLCHECK_SHA256}  shellcheck.tar.gz" | sha256sum -c -
+          tar xzf shellcheck.tar.gz --strip-components=1 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          rm shellcheck.tar.gz
+
+      - name: Shellcheck
+        run: |
+          set -euo pipefail
+          git ls-files -z '*.sh' | xargs -0 ./shellcheck -S warning
