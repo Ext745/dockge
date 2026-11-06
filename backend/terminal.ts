@@ -11,11 +11,15 @@ import {
 import { sync as commandExistsSync } from "command-exists";
 import { log } from "./log";
 
+// Terminal names come from clients, so don't let the remembered sizes grow without limit
+const MAX_REMEMBERED_SIZES = 1000;
+
 /**
  * Terminal for running commands, no user interaction
  */
 export class Terminal {
     protected static terminalMap : Map<string, Terminal> = new Map();
+    protected static clientSizeMap : Map<string, { rows : number, cols : number }> = new Map();
 
     protected _ptyProcess? : pty.IPty;
     protected server : DockgeServer;
@@ -115,7 +119,7 @@ export class Terminal {
             this._ptyProcess = pty.spawn(this.file, this.args, {
                 name: this.name,
                 cwd: this.cwd,
-                cols: TERMINAL_COLS,
+                cols: this.cols,
                 rows: this.rows,
             });
 
@@ -212,6 +216,24 @@ export class Terminal {
         return Terminal.terminalMap.get(name);
     }
 
+    /**
+     * Remember the size a client's terminal has, for the ptys started under this name later on
+     * @param name Terminal name
+     * @param rows Rows
+     * @param cols Columns
+     */
+    public static rememberClientSize(name : string, rows : number, cols : number) {
+        // Re-insert so the oldest entry is always the least recently resized one
+        Terminal.clientSizeMap.delete(name);
+        Terminal.clientSizeMap.set(name, { rows, cols });
+        if (Terminal.clientSizeMap.size > MAX_REMEMBERED_SIZES) {
+            const oldest = Terminal.clientSizeMap.keys().next().value;
+            if (oldest !== undefined) {
+                Terminal.clientSizeMap.delete(oldest);
+            }
+        }
+    }
+
     public static getOrCreateTerminal(server : DockgeServer, name : string, file : string, args : string | string[], cwd : string) : Terminal {
         // Since exited terminal will be removed from the map, it is safe to get the terminal from the map
         let terminal = Terminal.getTerminal(name);
@@ -233,7 +255,12 @@ export class Terminal {
             // prompts (e.g. docker compose "[y/N]" confirmations) or press
             // Ctrl+C from the progress terminal instead of getting stuck.
             let terminal = new InteractiveTerminal(server, terminalName, file, args, cwd);
-            terminal.rows = PROGRESS_TERMINAL_ROWS;
+
+            // One action can run several commands under this name (Update is pull, then up), each in a
+            // new pty, and the browser only reports its size when that size changes.
+            const size = Terminal.clientSizeMap.get(terminalName);
+            terminal.rows = size?.rows ?? PROGRESS_TERMINAL_ROWS;
+            terminal.cols = size?.cols ?? TERMINAL_COLS;
 
             if (socket) {
                 terminal.join(socket);

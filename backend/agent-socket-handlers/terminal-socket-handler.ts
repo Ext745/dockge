@@ -190,6 +190,9 @@ export class TerminalSocketHandler extends AgentSocketHandler {
                     throw new Error(`Cols must be an integer from 1 to ${MAX_TERMINAL_COLS}.`);
                 }
 
+                // Also when no pty is running: the size then applies to the next one
+                Terminal.rememberClientSize(terminalName, rows as number, cols as number);
+
                 let terminal = Terminal.getTerminal(terminalName);
 
                 // log.info("terminal", terminal);

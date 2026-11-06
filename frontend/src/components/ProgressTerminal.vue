@@ -69,6 +69,8 @@ export default defineComponent({
             this.progressTerminal.bind(this.endpoint, this.name);
             this.progressTerminal.clearTerminal();
             this.showProgressTerminal = true;
+            // The server forgets the size if it restarted while this page stayed open
+            this.progressTerminal.resyncSize();
             clearTimeout(autoHideTerminalTimout);
         },
 
