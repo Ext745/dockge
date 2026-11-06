@@ -641,6 +641,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| Unreleased | — | **Fix:** Pull dialog shows image names as plain text rather than raw HTML, so an untagged image's `<none>` no longer renders blank. |
 | [**v2.12.3**](https://github.com/Ext745/dockge/releases/tag/v2.12.3) | 2026-10-31 | Synced with darthrater78 v2.4.2: the quickstart mounts only Dockge's data and stacks folders, as upstream (no more `/opt/docker:/opt/docker` + `DOCKGE_BIND_ROOTS`); new `extra/narrow-bind-root.sh` switches an existing install back without moving data. Dependency fixes: follow-redirects and joi (High), qs, glob/minimatch overrides (Moderate). CI runs shellcheck |
 | [**v2.12.2**](https://github.com/Ext745/dockge/releases/tag/v2.12.2) | 2026-10-25 | Synced with darthrater78 v2.4.1 (Node.js 22.23.4 and Go 1.27.3 security update). **Fixes** (found by dockge-mod's code review): actions on an offline agent fail right away instead of spinning forever; login limit per client address, so one client can't lock everyone out; port badges never become `javascript:` links. npm audit fixes (body-parser, qs, fast-uri, ip-address) |
 | [**v2.12.1**](https://github.com/Ext745/dockge/releases/tag/v2.12.1) | 2026-10-18 | **Fix:** paste works in container terminals (Ctrl+V, Ctrl+Shift+V, right-click), including over plain HTTP; select-to-copy no longer fails or takes focus away over HTTP; Ctrl+C copies when text is selected; "Switch to sh" really switches to sh |
