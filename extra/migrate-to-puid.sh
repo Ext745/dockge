@@ -3,7 +3,7 @@
 # instead of root or `user:`, and the hardened settings. Dockge keeps mounting only its data folder
 # and the stacks folder.
 #
-#   bash migrate-to-puid.sh [version]        (default version: 2.12.4)
+#   bash migrate-to-puid.sh [version]        (default version: 2.12.5)
 #
 # It reads the running container (docker inspect + its compose labels), asks only what it can't
 # know, shows the new compose.yaml and a diff, and changes nothing until you answer y. It refuses
@@ -11,7 +11,7 @@
 # Backup, then rollback: see the end of the run. Needs bash and docker (with the compose plugin).
 set -euo pipefail
 
-VERSION="${1:-2.12.4}"
+VERSION="${1:-2.12.5}"
 IMAGE="ghcr.io/ext745/dockge"
 
 S=
