@@ -275,7 +275,18 @@ export default {
             if (!this.$refs.terminal?.offsetParent) {
                 return;
             }
-            this.terminalFitAddOn.fit();
+            if (this.mode === "progress") {
+                // The progress terminal's box takes its height from xterm's own rows, so fitting the rows
+                // to it is circular: if the box measures a fraction of a pixel short (browser zoom, display
+                // scaling, font metrics), every fit drops a row and the resize starts the next one, down to
+                // 1-3 rows. Fit only the width and keep the fixed row count.
+                const proposed = this.terminalFitAddOn.proposeDimensions();
+                if (proposed?.cols && (proposed.cols !== this.terminal.cols || this.terminal.rows !== this.rows)) {
+                    this.terminal.resize(proposed.cols, this.rows);
+                }
+            } else {
+                this.terminalFitAddOn.fit();
+            }
             const { rows, cols } = this.terminal;
             if (rows === this.syncedRows && cols === this.syncedCols) {
                 return;

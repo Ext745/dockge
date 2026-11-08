@@ -259,7 +259,9 @@ export class Terminal {
             // One action can run several commands under this name (Update is pull, then up), each in a
             // new pty, and the browser only reports its size when that size changes.
             const size = Terminal.clientSizeMap.get(terminalName);
-            terminal.rows = size?.rows ?? PROGRESS_TERMINAL_ROWS;
+            // Never fewer rows than the progress terminal shows: a browser on an older page could still
+            // report a shrunken height, and Compose draws its live progress to fit the pty's rows.
+            terminal.rows = Math.max(size?.rows ?? PROGRESS_TERMINAL_ROWS, PROGRESS_TERMINAL_ROWS);
             terminal.cols = size?.cols ?? TERMINAL_COLS;
 
             if (socket) {
