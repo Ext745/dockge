@@ -644,6 +644,7 @@ This fork's releases (full notes on each [GitHub Release](https://github.com/Ext
 
 | Version | Date | What changed |
 |---|---|---|
+| Unreleased | — | **Security:** vue-i18n 11 (from 10, out of support), fixing its two remaining advisories, so `npm audit` is clean |
 | [**v2.12.5**](https://github.com/Ext745/dockge/releases/tag/v2.12.5) | 2026-11-08 | **Fix:** the progress terminal could shrink to 1-3 rows in some browsers, and since 2.12.4 Compose's live output then ran at that height too; it now always keeps its 8 rows |
 | [**v2.12.4**](https://github.com/Ext745/dockge/releases/tag/v2.12.4) | 2026-11-06 | **Fix:** the progress terminal keeps its width across every command of an action, so Update's output no longer wraps or redraws in the wrong place; the Pull dialog shows image names as plain text, so an untagged image's `<none>` no longer renders blank |
 | [**v2.12.3**](https://github.com/Ext745/dockge/releases/tag/v2.12.3) | 2026-10-31 | Synced with darthrater78 v2.4.2: the quickstart mounts only Dockge's data and stacks folders, as upstream (no more `/opt/docker:/opt/docker` + `DOCKGE_BIND_ROOTS`); new `extra/narrow-bind-root.sh` switches an existing install back without moving data. Dependency fixes: follow-redirects and joi (High), qs, glob/minimatch overrides (Moderate). CI runs shellcheck |

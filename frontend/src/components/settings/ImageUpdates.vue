@@ -11,14 +11,14 @@
             <div class="mb-3">
                 <label class="form-label" for="imageUpdateInterval">{{ $t("imageUpdateInterval") }}</label>
                 <select id="imageUpdateInterval" v-model.number="imageUpdateInterval" class="form-select interval-select" :disabled="!imageUpdateCheck">
-                    <option v-for="hours in intervalOptions" :key="hours" :value="hours">{{ $tc("everyHours", hours, { n: hours }) }}</option>
+                    <option v-for="hours in intervalOptions" :key="hours" :value="hours">{{ $t("everyHours", { n: hours }, hours) }}</option>
                 </select>
             </div>
 
             <table class="table table-sm node-table mb-3">
                 <thead>
                     <tr>
-                        <th>{{ $tc("agent", 1) }}</th>
+                        <th>{{ $t("agent", 1) }}</th>
                         <th>{{ $t("lastChecked") }}</th>
                         <th>{{ $t("result") }}</th>
                     </tr>

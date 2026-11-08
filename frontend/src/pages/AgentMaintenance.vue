@@ -46,7 +46,7 @@
             <div class="shadow-box mt-3">
                 <b-tabs v-model="activeArtefactIndex" nav-item-class="artefact-tab me-2" active-nav-item-class="active-artefact-tab" pills>
                     <template v-for="info in Object.values(DockerArtefactInfos)" :key="info.name">
-                        <b-tab active lazy :title="$tc(info.name, 2)">
+                        <b-tab active lazy :title="$t(info.name, 2)">
                             <div class="mt-4">
                                 <DockerArtefact :ref="info.name" :endpoint="endpoint" :artefact="info" />
                             </div>

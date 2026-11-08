@@ -117,7 +117,7 @@
 
             <!-- Mobile: which agent this stack lives on -->
             <div v-if="$root.isMobile && $root.agentCount > 1 && !isAdd" v-show="show('overview')" class="stack-agent mb-2">
-                <font-awesome-icon icon="server" class="me-2" />{{ $tc("dockgeAgent", 1) }}: <strong>{{ endpoint ? endpointDisplay : $t("currentEndpoint") }}</strong>
+                <font-awesome-icon icon="server" class="me-2" />{{ $t("dockgeAgent", 1) }}: <strong>{{ endpoint ? endpointDisplay : $t("currentEndpoint") }}</strong>
             </div>
 
             <!-- URLs -->
@@ -208,7 +208,7 @@
 
                     <!-- Containers -->
                     <div v-show="show('overview')">
-                        <h4 class="mb-3">{{ $tc("container", 2) }}</h4>
+                        <h4 class="mb-3">{{ $t("container", 2) }}</h4>
 
                         <div v-if="isEditMode" class="input-group mb-3">
                             <input
@@ -248,7 +248,7 @@
                             <!-- URLs -->
                             <div class="mb-4">
                                 <label class="form-label">
-                                    {{ $tc("url", 2) }}
+                                    {{ $t("url", 2) }}
                                 </label>
                                 <ArrayInput name="urls" :display-name="$t('url')" placeholder="https://" object-type="x-dockge" />
                             </div>
@@ -408,13 +408,13 @@
                     <div v-if="isEditMode">
                         <!-- Volumes -->
                         <div v-if="false">
-                            <h4 class="mb-3">{{ $tc("volume", 2) }}</h4>
+                            <h4 class="mb-3">{{ $t("volume", 2) }}</h4>
                             <div class="shadow-box big-padding mb-3">
                             </div>
                         </div>
 
                         <!-- Networks -->
-                        <h4 class="mb-3">{{ $tc("network", 2) }}</h4>
+                        <h4 class="mb-3">{{ $t("network", 2) }}</h4>
                         <div class="shadow-box big-padding mb-3">
                             <NetworkInput />
                         </div>

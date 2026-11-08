@@ -2,7 +2,7 @@
     <div v-if="conflicts.length > 0" class="port-conflict-banner" role="alert">
         <div class="banner-head">
             <font-awesome-icon icon="exclamation-circle" class="me-1" />
-            <strong>{{ $tc("portConflictsFound", conflicts.length, [ conflicts.length ]) }}</strong>
+            <strong>{{ $t("portConflictsFound", [ conflicts.length ], conflicts.length) }}</strong>
         </div>
         <ul class="conflict-list">
             <li v-for="c in conflicts" :key="c.endpoint + ':' + c.port">

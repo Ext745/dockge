@@ -41,7 +41,7 @@
                         <BDropdownDivider></BDropdownDivider>
 
                         <template v-for="category in stackFilter.categories" :key="category.label">
-                            <BDropdownGroup v-if="category.hasOptions()" :header="$tc(category.label, 2)">
+                            <BDropdownGroup v-if="category.hasOptions()" :header="$t(category.label, 2)">
                                 <li v-for="(value, key) in category.options" :key="value" class="filter-option">
                                     <div class="form-check">
                                         <input

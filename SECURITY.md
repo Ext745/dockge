@@ -37,6 +37,7 @@ What follows describes how this fork handles security, so it can be checked agai
 
 ### Changes
 
+- 2026-11-08 (Ext745, unreleased): vue-i18n 11.4.18 (from 10.0.8), which fixes GHSA-83rm-6c8r-g728 (High) and GHSA-8rc2-428q-7ww3 (Low) and ends the risk acceptance below; the 10.x line was also out of support. `$tc` (removed in 11) replaced by `$t` with a plural count. `npm audit`: 0 vulnerabilities.
 - 2026-10-31 (Ext745 v2.12.3): darthrater78 v2.4.2 merged (the items below dated 2026-10-31). New here: qs 6.17.1, the glob 14.0.3 / minimatch 11.0.3 overrides (Moderate), and from `npm audit fix` follow-redirects 1.16.2 and joi 17.13.9 (High); body-parser, fast-uri and ip-address were already fixed in Ext745 v2.12.2. vue-i18n 10 stays, on the grounds below.
 - 2026-10-31 (v2.4.2): dependency fixes: body-parser 2.4.0 (High, denial of service from trailing bytes after a compressed body), fast-uri 3.1.9, ip-address 10.7.5, qs 6.17.1, and glob 14.0.3 / minimatch 11.0.3 through `overrides` (Moderate). Server dependencies audit clean.
 - 2026-10-31 (risk accepted): GHSA-83rm-6c8r-g728 (High) and GHSA-8rc2-428q-7ww3 (Low) in vue-i18n 10.0.8. Not exploitable here: Dockge doesn't enable `escapeParameter`, renders no translation with `v-html`, and has no `srcdoc` in its messages. The fix needs vue-i18n 11; revisit if any of those change. The 10.x line is also out of support (no further fixes); accepted on the same grounds, no upgrade planned until an advisory affects Dockge.

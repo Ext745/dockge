@@ -17,7 +17,7 @@
     </div>
 
     <!-- Prune dialog -->
-    <BModal v-model="showPruneDialog" :title="$t('prune') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('prune')" okVariant="danger" @ok="executeAction(pruneDialogData.all ? DockerArtefactAction.PruneAll : DockerArtefactAction.Prune)" @show="resetPruneDialog" @hidden="resetPruneDialog">
+    <BModal v-model="showPruneDialog" :title="$t('prune') + ' ' + $t(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('prune')" okVariant="danger" @ok="executeAction(pruneDialogData.all ? DockerArtefactAction.PruneAll : DockerArtefactAction.Prune)" @show="resetPruneDialog" @hidden="resetPruneDialog">
         <p class="mb-3" v-html="$t(artefact.name + 'PruneMsg')"></p>
 
         <BForm v-if="artefact.actions.includes(DockerArtefactAction.PruneAll)">
@@ -26,7 +26,7 @@
     </BModal>
 
     <!-- Pull dialog -->
-    <BModal v-model="showPullDialog" :title="$t('pull') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('pull')" okVariant="primary" :ok-disabled="selectedItems.length === 0" @ok="executeAction(DockerArtefactAction.Pull)">
+    <BModal v-model="showPullDialog" :title="$t('pull') + ' ' + $t(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('pull')" okVariant="primary" :ok-disabled="selectedItems.length === 0" @ok="executeAction(DockerArtefactAction.Pull)">
         <p v-html="$t('imagePullInfoMsg')"></p>
         <ul>
             <li v-for="name in pullDialogData.danglingImages" :key="name">{{ name }}</li>
@@ -34,7 +34,7 @@
     </BModal>
 
     <!-- Delete dialog -->
-    <BModal v-model="showDeleteDialog" :title="$t('delete') + ' ' + $tc(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('delete')" okVariant="danger" @ok="executeAction(DockerArtefactAction.Remove)">
+    <BModal v-model="showDeleteDialog" :title="$t('delete') + ' ' + $t(artefact.name, 2)" :no-close-on-backdrop="true" :close-on-esc="true" :okTitle="$t('delete')" okVariant="danger" @ok="executeAction(DockerArtefactAction.Remove)">
         <p class="mb-3" v-html="$t(artefact.name + 'DeleteMsg')"></p>
     </BModal>
 
