@@ -37,7 +37,9 @@ Standing rules:
 - Every release also gets a row in README's "Version History" table
   (version, date, one-line summary, link to its GitHub Release), in
   the same commit as the version bump. Each user-visible change or fix
-  also gets a bullet in README's Features list (`(Ext745/dockge X.Y.Z 🆕)`)
+  also gets a bullet in README's Features list (`(Ext745/dockge X.Y.Z 🆕)`;
+  a release with several bullets gets one `**Ext745/dockge X.Y.Z** 🆕`
+  line with them nested under it, list kept in version order)
   and fixes go in the bug-fix paragraph under the fork table - the
   Features list is where users actually look.
 - Tag namespace: darthrater78 and this fork both tag `vX.Y.Z`, and their

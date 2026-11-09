@@ -161,50 +161,61 @@ This fork is kept in sync with darthrater78/dockge via regular merges — last s
 - 🏪 Convert `docker run ...` commands into `compose.yaml`
 - 📙 File based structure - Dockge won't kidnap your compose files, they are stored on your drive as usual. You can interact with them using normal `docker compose` commands
 - 🕷️ (1.4.0 🆕) Multiple agents support - You can manage multiple stacks from different Docker hosts in one single interface
-- 🧩 (1.5.1 🆕) Compose override editor - Edit `compose.override.yaml` alongside your main compose file, when present
-- 🔐 (1.5.1 🆕) Optional Cloudflare Turnstile CAPTCHA on login
+- **1.5.1** 🆕
+  - 🧩 Compose override editor - Edit `compose.override.yaml` alongside your main compose file, when present
+  - 🔐 Optional Cloudflare Turnstile CAPTCHA on login
 - 🌐 (1.6.0 🆕) REST API for external automation (CI/CD, scripts, monitoring)
 - 🔄 (1.7.0 🆕) Compose Drift Check — detect and fix image tag drift between running containers and compose files (2.3.0: fast "Scan All", works on phones — [details](#drift-check))
 - 🔑 (1.9.0 🆕) Two-Factor Authentication (TOTP) — protect your account with app-based 2FA
-- 📱 (2.3.0 🆕) Mobile-first phone layout — find a stack, edit it, act on it and watch its logs, all within thumb reach ([details](#mobile))
-- ↔️ (2.3.0 🆕) Resizable stack list on desktop, with port badges that fill whatever width you give it ([details](#desktop))
-- 🚦 (2.3.0 🆕) Port conflict banner — every host port published by more than one running stack, and which stacks they are
+- **2.3.0** 🆕
+  - 📱 Mobile-first phone layout — find a stack, edit it, act on it and watch its logs, all within thumb reach ([details](#mobile))
+  - ↔️ Resizable stack list on desktop, with port badges that fill whatever width you give it ([details](#desktop))
+  - 🚦 Port conflict banner — every host port published by more than one running stack, and which stacks they are
 - 🛑 (2.3.1 🆕) Port check on Save and Deploy — warns when a host port is already used by another stack (running or not) or a running container, including ports set through `.env` variables, `compose.override.yaml` and port ranges
-- 🐳 (Ext745/dockge 🆕) Agent Maintenance UI — manage containers, images, networks, and volumes per agent, with live terminal output
-- 🙈 (Ext745/dockge 🆕) Ignore-service-status toggle — exclude specific services from a stack's aggregate status badge
-- ⛶ (Ext745/dockge 🆕) Fullscreen toggle for the compose.yaml editor
-- 🏷️ (Ext745/dockge 🆕) Advanced stack-list filtering by agent and status
-- 🔀 (Ext745/dockge 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
-- 💾 (Ext745/dockge 🆕) Download Log — save a stack's terminal output to a local file
-- 📋 (Ext745/dockge 🆕) Copy-all button on every terminal — one click to copy its full output to the clipboard, with a fallback for HTTP-only instances where the browser's Clipboard API isn't available
-- ⌨️ (Ext745/dockge 🆕) Raw-keystroke console — tab completion, command history and Ctrl+C work in the host Console like a real terminal
+- **Ext745/dockge 2.2.0** 🆕
+  - 🐳 Agent Maintenance UI — manage containers, images, networks, and volumes per agent, with live terminal output
+  - 🙈 Ignore-service-status toggle — exclude specific services from a stack's aggregate status badge
+  - ⛶ Fullscreen toggle for the compose.yaml editor
+  - 🏷️ Advanced stack-list filtering by agent and status
+- 🔀 (Ext745/dockge 2.3.0 🆕) Node-to-node stack transfer — move a stack to another connected agent from the kebab menu
+- **Ext745/dockge 2.4.0** 🆕
+  - 💾 Download Log — save a stack's terminal output to a local file
+  - 📋 Copy-all button on every terminal — one click to copy its full output to the clipboard, with a fallback for HTTP-only instances where the browser's Clipboard API isn't available
+- ⌨️ (Ext745/dockge 2.5.0 🆕) Raw-keystroke console — tab completion, command history and Ctrl+C work in the host Console like a real terminal
 - 🔔 (Ext745/dockge 2.5.1 🆕) Update check that works — "Show update if available" now checks this fork's GitHub Releases (it used to ask louislam's 1.x endpoint and never fired), and Settings → About opens the releases page
 - 🗑️ (Ext745/dockge 2.5.2 🆕) Delete works on a broken compose file — a stack saved with an invalid `compose.yaml` (or whose Deploy failed on one) can be deleted again, and its containers are removed too
-- ✅ (Ext745/dockge 2.6.0 🆕) Compose check before Save and Deploy — `docker compose config` reads the edited file first; a mistake like `imagee:` blocks Deploy and asks before Save, with compose's own error message
-- 🪄 (Ext745/dockge 2.6.0 🆕) Format button and "Format on save" — tabs become spaces, 2-space indentation, trailing spaces removed; comments, quotes and inline lists are kept, and it only applies if the file still means exactly the same
+- **Ext745/dockge 2.6.0** 🆕
+  - ✅ Compose check before Save and Deploy — `docker compose config` reads the edited file first; a mistake like `imagee:` blocks Deploy and asks before Save, with compose's own error message
+  - 🪄 Format button and "Format on save" — tabs become spaces, 2-space indentation, trailing spaces removed; comments, quotes and inline lists are kept, and it only applies if the file still means exactly the same
 - 🧩 (Ext745/dockge 2.6.1 🆕) Form editors keep your formatting — changing an image, port, URL, network or container through the forms now edits just that part of compose.yaml; quotes, inline lists, comments, `key:` and indentation elsewhere stay as you wrote them
 - 📥 (Ext745/dockge 2.7.0 🆕) Import Stacks — bring compose stacks Dockge doesn't manage (already running, or found by scanning a host folder) under Dockge in a few clicks; volumes and networks carry over, data stays where it is, the original folder is never touched, and every import can be rolled back
 - 🐳 (Ext745/dockge 2.8.0 🆕) Import `docker run` containers — Dockge writes a compose file from the running container (only what you set, not the image's defaults; volumes reused so no data is lost) for you to review and edit, then swaps the container for a stack; the original is kept stopped until you choose Keep, and Roll back puts it back
 - 🧭 (Ext745/dockge 2.9.0 🆕) Import Portainer stacks — connect with a Portainer access token (never saved) and import its compose stacks, stack variables included; data stays exactly where Portainer's deploy put it, with the same backup and roll back
 - 🛡️ (Ext745/dockge 2.10.0 🆕) "Prune all images" keeps images your stacks use — an on-demand stack (like a build toolchain run with `docker compose run`) has no container between runs, so Docker treats its image as unused; Dockge's prune-all options now keep every tag of any image repository a stack's compose file names, and say which ones they kept
-- 🧹 (Ext745/dockge 2.10.1 🆕) Clean prune output — "all images" prunes no longer show Docker's legacy-builder deprecation notice (Dockge's image has no buildx); the build cache step prints one line with what it reclaimed
-- 🏷️ (Ext745/dockge 2.10.1 🆕) Image Delete removes just the tag you picked — two tags of the same image no longer tick together, and deleting an unused tag no longer fails with "image is being used by running container" when another tag of it is in use
+- **Ext745/dockge 2.10.1** 🆕
+  - 🧹 Clean prune output — "all images" prunes no longer show Docker's legacy-builder deprecation notice (Dockge's image has no buildx); the build cache step prints one line with what it reclaimed
+  - 🏷️ Image Delete removes just the tag you picked — two tags of the same image no longer tick together, and deleting an unused tag no longer fails with "image is being used by running container" when another tag of it is in use
 - 💾 (Ext745/dockge 2.10.2 🆕) "Prune all" volumes keeps your stacks' data — a stack that's "down" has no containers, so Docker counts its volumes (e.g. a database) as unused; Agent Maintenance's volume Prune with "all" now keeps every volume a stack's compose file declares
 - 📜 (Ext745/dockge 2.10.3 🆕) Update shows its output — the stack's Update button opens the terminal and streams the pull/recreate output, like Start/Stop/Deploy
-- ☁️ (Ext745/dockge 2.11.0 🆕) Update available — stacks whose images have a newer version on their registry get a cloud icon in the stack list, a filter option and an "Updates" chip on phones; the stack page badges the services and highlights Update. Checked every 6 hours on every node (Settings → Image updates)
-- ⌨️ (Ext745/dockge 2.11.0 🆕) Keyboard works in the stack list's filter menu and a stack's ⋮ menu — Escape closes them and the arrow keys move through them, instead of throwing an error
+- **Ext745/dockge 2.11.0** 🆕
+  - ☁️ Update available — stacks whose images have a newer version on their registry get a cloud icon in the stack list, a filter option and an "Updates" chip on phones; the stack page badges the services and highlights Update. Checked every 6 hours on every node (Settings → Image updates)
+  - ⌨️ Keyboard works in the stack list's filter menu and a stack's ⋮ menu — Escape closes them and the arrow keys move through them, instead of throwing an error
 - 🔄 (Ext745/dockge 2.11.1 🆕) System Prune refreshes Agent Maintenance's lists — removed images, containers, networks and volumes disappear right away instead of staying listed until a page reload; the summary names the images it removed
-- 👤 (2.4.0 / Ext745/dockge 2.12.0 🆕) Run Dockge as a regular user — `PUID`/`PGID` with `DOCKGE_DROP_ROOT=true`: Dockge fixes the ownership of its own folders, joins the docker.sock group and drops root; existing installs keep running as root until they opt in ([details](#runtime))
-- 📁 (2.4.0 / Ext745/dockge 2.12.0 🆕) Bind-mount folders created before a stack starts — owned by `PUID:PGID` (or root), so containers can write to them without a `chown`
-- 🧰 (Ext745/dockge 2.12.0 🆕) Delete and Transfer work on root-owned app data when Dockge runs as a regular user — the step it can't do itself runs in a short-lived root helper container
-- ✂️ (Ext745/dockge 2.12.1 🆕) Terminal copy/paste that works over plain HTTP — select to copy, Ctrl+C with a selection or Ctrl+Shift+C to copy, Ctrl+V / Ctrl+Shift+V to paste, and the browser's right-click Copy/Paste
-- 🐚 (Ext745/dockge 2.12.1 🆕) "Switch to sh" opens a real sh session — it used to stay attached to the running bash one
-- 📴 (Ext745/dockge 2.12.2 🆕) Actions on an offline agent fail with an error right away instead of spinning forever
-- 🔐 (Ext745/dockge 2.12.2 🆕) Login rate limit per client address (10 a minute) before the overall one (30 a minute), so one client can no longer lock everyone out
-- 🔗 (Ext745/dockge 2.12.2 🆕) Port badges only link to `http`/`https` URLs, never `javascript:` from a crafted compose port
+- **Ext745/dockge 2.12.0** 🆕
+  - 👤 (from darthrater78 2.4.0) Run Dockge as a regular user — `PUID`/`PGID` with `DOCKGE_DROP_ROOT=true`: Dockge fixes the ownership of its own folders, joins the docker.sock group and drops root; existing installs keep running as root until they opt in ([details](#runtime))
+  - 📁 (from darthrater78 2.4.0) Bind-mount folders created before a stack starts — owned by `PUID:PGID` (or root), so containers can write to them without a `chown`
+  - 🧰 Delete and Transfer work on root-owned app data when Dockge runs as a regular user — the step it can't do itself runs in a short-lived root helper container
+- **Ext745/dockge 2.12.1** 🆕
+  - ✂️ Terminal copy/paste that works over plain HTTP — select to copy, Ctrl+C with a selection or Ctrl+Shift+C to copy, Ctrl+V / Ctrl+Shift+V to paste, and the browser's right-click Copy/Paste
+  - 🐚 "Switch to sh" opens a real sh session — it used to stay attached to the running bash one
+- **Ext745/dockge 2.12.2** 🆕
+  - 📴 Actions on an offline agent fail with an error right away instead of spinning forever
+  - 🔐 Login rate limit per client address (10 a minute) before the overall one (30 a minute), so one client can no longer lock everyone out
+  - 🔗 Port badges only link to `http`/`https` URLs, never `javascript:` from a crafted compose port
 - 📦 (2.4.2 / Ext745/dockge 2.12.3 🆕) Quickstart mounts only Dockge's data and stacks folders, as upstream — Dockge no longer sees your apps' data; [`narrow-bind-root.sh`](#bind-roots) switches an older install back
-- 📐 (Ext745/dockge 2.12.4 🆕) Progress terminal keeps its width — every command in an action, like Update's pull and then up, runs at the size of your terminal, so `docker compose` output no longer wraps or redraws in the wrong place
-- 🏷️ (Ext745/dockge 2.12.4 🆕) Pull dialog lists image names as plain text — an untagged image's `<none>` shows up instead of rendering blank
+- **Ext745/dockge 2.12.4** 🆕
+  - 📐 Progress terminal keeps its width — every command in an action, like Update's pull and then up, runs at the size of your terminal, so `docker compose` output no longer wraps or redraws in the wrong place
+  - 🏷️ Pull dialog lists image names as plain text — an untagged image's `<none>` shows up instead of rendering blank
 - 📏 (Ext745/dockge 2.12.5 🆕) Progress terminal always keeps its 8 rows — in some browsers it shrank to 1-3 rows during an action, and Compose's live output with it
 
 <img src="https://github.com/louislam/dockge/assets/1336778/cc071864-592e-4909-b73a-343a57494002" width=300 />
