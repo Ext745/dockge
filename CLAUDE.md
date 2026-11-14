@@ -26,10 +26,21 @@ Standing rules:
   `docker rm -f -v` (dind keeps /var/lib/docker in an anonymous volume;
   without -v every test run leaves ~70 MB-1.5 GB behind), and remove any
   helper images pulled onto the host when done.
-- Before tagging a release, grep for the outgoing version string across
-  the repo - the pinned image tag in `compose.yaml` and README's
-  quickstart/one-line updater carry it (`Layout.vue` and `About.vue`
-  now link `/releases/latest` / `/releases`, so they no longer do).
+- A release is two commits, so `master`'s `compose.yaml` never pins an
+  image that isn't on ghcr.io yet (the quickstart curls it from
+  `master`, and a failed release would otherwise leave it broken):
+  1. Release commit: bump `package.json`, add the Version History row
+     and Features bullets - but leave the pinned image tags at the
+     previous version. Push `master`, then the `vX.Y.Z` tag (the
+     gate needs CI on the commit first, see below).
+  2. Pin commit, only after `docker-release.yml` has passed (its last
+     step `imagetools inspect`s the new tag): grep for the outgoing
+     version string and bump the pinned image tag in `compose.yaml`
+     and README (copy-paste quickstart, Advanced section, one-line
+     updater). Push. If the release failed, fix and re-tag first;
+     never push the pin before the image exists. (`Layout.vue` and
+     `About.vue` link `/releases/latest` / `/releases`, so they carry
+     no version.)
 - Every release needs a GitHub Release (`gh release create vX.Y.Z`),
   not just a tag: `docker-release.yml` only publishes the image, and
   the in-app update check (`backend/check-version.ts`) reads this
@@ -51,7 +62,8 @@ Standing rules:
   the HACS `ha-dockge` integration and `docker/Dockerfile`'s public
   `:base`/`:build-healthcheck` images are intentionally left as-is).
 - `docker-release.yml`'s gate job waits for a passing `ci.yml` run on
-  the tagged commit, so push `master` before the tag.
+  the tagged commit, so push `master` before the tag (that's the
+  release commit - the pin commit comes after the image, see above).
 - Deliberate divergences from darthrater78 to keep when merging:
   dropping root to PUID/PGID needs `DOCKGE_DROP_ROOT=true`
   (`extra/entrypoint.sh`, `migrate-to-puid.sh`, README runtime/upgrade
