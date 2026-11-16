@@ -1,5 +1,6 @@
 // @ts-ignore
 import composerize from "composerize";
+import { normalizeDockerRunCommand, stripComposerizeName } from "../composerize-normalize";
 import { SocketHandler } from "../socket-handler.js";
 import { DockgeServer } from "../dockge-server";
 import { log } from "../log";
@@ -525,10 +526,13 @@ export class MainSocketHandler extends SocketHandler {
                 }
 
                 // Option: 'latest' | 'v2x' | 'v3x'
-                let composeTemplate = composerize(dockerRunCommand, "", "latest");
+                // Re-quote arguments as a whole first: composerize keeps quotes
+                // that appear mid-argument (e.g. --sysctl k="0 1"), producing
+                // values with literal quotes that the container runtime rejects.
+                let composeTemplate = composerize(normalizeDockerRunCommand(dockerRunCommand), "", "latest");
 
-                // Remove the first line "name: <your project name>"
-                composeTemplate = composeTemplate.split("\n").slice(1).join("\n");
+                // Remove the "name: <your project name>" placeholder line
+                composeTemplate = stripComposerizeName(composeTemplate);
 
                 callback({
                     ok: true,
