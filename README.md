@@ -275,7 +275,7 @@ To use a different stacks directory or port, generate a compose file with the [i
 curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=/opt/docker/stacks" --output compose.yaml
 ```
 
-Then set its `image:` to `ghcr.io/ext745/dockge:2.12.5` (the generator uses the upstream image). To run Dockge as a regular user, add under `environment:` (see [Running as a regular user](#runtime); without `DOCKGE_DROP_ROOT`, Dockge stays root and `PUID`/`PGID` only set the owner of the files it writes):
+Then set its `image:` to `ghcr.io/ext745/dockge:2.12.6` (the generator uses the upstream image). To run Dockge as a regular user, add under `environment:` (see [Running as a regular user](#runtime); without `DOCKGE_DROP_ROOT`, Dockge stays root and `PUID`/`PGID` only set the owner of the files it writes):
 
 ```yaml
       - PUID=1000
@@ -290,7 +290,7 @@ Save this as `/opt/docker/dockge/compose.yaml` (create the folders first: `sudo 
 ```yaml
 services:
   dockge:
-    image: ghcr.io/ext745/dockge:2.12.5
+    image: ghcr.io/ext745/dockge:2.12.6
     restart: unless-stopped
     ports:
       - 5001:5001
@@ -476,14 +476,14 @@ Back up first (`docker compose stop dockge`, then copy `compose.yaml` and the da
 
 ## How to Update
 
-The compose file pins a release (`ghcr.io/ext745/dockge:2.12.5`) so an update never happens by surprise.
+The compose file pins a release (`ghcr.io/ext745/dockge:2.12.6`) so an update never happens by surprise.
 
 ### One-line update
 
 Dockge can't update itself (restarting its own container would cut the update off halfway), so run this on the Docker host. Set `V` to the [latest release](https://github.com/Ext745/dockge/releases/latest):
 
 ```bash
-V=2.12.5; F=/opt/docker/dockge/compose.yaml
+V=2.12.6; F=/opt/docker/dockge/compose.yaml
 S=; docker ps >/dev/null 2>&1 || S=sudo; $S docker pull ghcr.io/ext745/dockge:$V \
   && $S sed -i.bak -E "s#(ghcr\.io/[^/]+/dockge:)[^[:space:]]+#\1$V#" "$F" \
   && $S docker compose -f "$F" up -d dockge && $S docker compose -f "$F" ps dockge \
